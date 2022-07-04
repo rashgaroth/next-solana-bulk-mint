@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 /* eslint-disable jsx-a11y/anchor-is-valid */
 import {
   Alert,
@@ -26,6 +27,8 @@ import { makeStyles } from '@mui/styles'
 import { GatewayStatus, useGateway } from '@civic/solana-gateway-react'
 import Link from 'next/link'
 import { AlertState } from 'lib/utils'
+import { useWallet } from '@solana/wallet-adapter-react'
+import { candyMachineConfig } from 'config/candyMachine'
 
 const style = {
   position: 'absolute',
@@ -55,6 +58,8 @@ interface IMintModal {
   solscanInfo: string
   alertState: AlertState
   onAlertState: (data: AlertState) => void
+  mintCount: number
+  onChangeMintCount: (counter: string) => void
 }
 
 interface LinearProgressMinted extends LinearProgressProps {
@@ -101,11 +106,13 @@ const MintModal = ({
   onFinishVerified,
   solscanInfo,
   alertState,
-  onAlertState
+  onAlertState,
+  mintCount,
+  onChangeMintCount
 }: IMintModal) => {
-  const [countMint, setCountMint] = useState<number>(1)
   const [clicked, setClicked] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
+  const wallet = useWallet()
 
   const classes = useStyles()
   const { requestGatewayToken, gatewayStatus } = useGateway()
@@ -123,12 +130,6 @@ const MintModal = ({
       setClicked(false)
     }
   }, [gatewayStatus, clicked, setClicked, onMint, onFinishVerified])
-
-  const onChangeCounter = (counter: string) => {
-    if (countMint === 0 && counter === 'min') return
-    if (counter === 'min') setCountMint(countMint - 1)
-    else setCountMint(countMint + 1)
-  }
 
   return (
     <Modal
@@ -148,34 +149,39 @@ const MintModal = ({
           </p>
           <CardMedia src="/assets/images/dgp-merged.gif" component={'img'} sx={{ borderRadius: 4 }} height={400} width={100} alt="gif" />
           <Stack direction={'row'} spacing={2} mt={2} mb={2} alignItems={'center'}>
-            <IconButton sx={{ bgcolor: 'primary.light' }} onClick={() => onChangeCounter('min')} disabled={countMint === 0}>
-              <Remove />
-            </IconButton>
-            <p className={styles.buttonText} style={{ textAlign: 'center', fontSize: 22, alignSelf: 'center' }}>
-              {countMint}
-            </p>
-            <IconButton sx={{ bgcolor: 'primary.light' }} onClick={() => onChangeCounter('plus')} disabled={countMint === 100}>
-              <Add />
-            </IconButton>
-            <Button
-              disabled={clicked || candyMachine?.state.isSoldOut || isSoldOut || isMinting || isEnded || !isActive || isVerifying}
-              sx={{ bgcolor: 'primary.light' }}
-              onClick={async () => {
-                if (isActive && candyMachine?.state.gatekeeper && gatewayStatus !== GatewayStatus.ACTIVE) {
-                  handleClose()
-                  console.log('Requesting gateway token')
-                  setClicked(true)
-                  await requestGatewayToken()
-                } else {
-                  onFinishVerified()
-                  console.log('Minting...')
-                  await onMint()
-                }
-              }}>
-              <Typography color="white" fontWeight={'bold'} variant="button" component={'div'}>
-                Mint
-              </Typography>
-            </Button>
+            {/* @ts-ignore */}
+            {!itemsRemaining === 0 && (
+              <>
+                <IconButton sx={{ bgcolor: 'primary.light' }} onClick={() => onChangeMintCount('min')} disabled={mintCount === 0}>
+                  <Remove />
+                </IconButton>
+                <p className={styles.buttonText} style={{ textAlign: 'center', fontSize: 22, alignSelf: 'center' }}>
+                  {mintCount}
+                </p>
+                <IconButton sx={{ bgcolor: 'primary.light' }} onClick={() => onChangeMintCount('plus')} disabled={mintCount === 100}>
+                  <Add />
+                </IconButton>
+                <Button
+                  disabled={clicked || candyMachine?.state.isSoldOut || isSoldOut || isMinting || isEnded || !isActive || isVerifying}
+                  sx={{ bgcolor: 'primary.light' }}
+                  onClick={async () => {
+                    if (isActive && candyMachine?.state.gatekeeper && gatewayStatus !== GatewayStatus.ACTIVE) {
+                      handleClose()
+                      console.log('Requesting gateway token')
+                      setClicked(true)
+                      await requestGatewayToken()
+                    } else {
+                      onFinishVerified()
+                      console.log('Minting...')
+                      await onMint()
+                    }
+                  }}>
+                  <Typography color="white" fontWeight={'bold'} variant="button" component={'div'}>
+                    Mint
+                  </Typography>
+                </Button>
+              </>
+            )}
             <Box sx={{ width: '100%' }}>
               <LinearProgressWithLabel
                 className={classes.root}
@@ -187,6 +193,28 @@ const MintModal = ({
               />
             </Box>
           </Stack>
+          {itemsRemaining === 0 && (
+            <>
+              <p className={styles.buttonText} style={{ textAlign: 'start', fontSize: 19, alignSelf: 'start' }}>
+                Your NFTs has been minted 🥳🥳🥳
+              </p>
+              {wallet.connected && wallet.publicKey.toBase58() && (
+                <Typography color="white" fontWeight={'bold'} variant="button" component={'div'}>
+                  You can see your collection at{' '}
+                  <Typography
+                    color="green"
+                    fontWeight={'bold'}
+                    component={'a'}
+                    href={`https://explorer.solana.com/address/${wallet.publicKey.toBase58()}/tokens?cluster=${candyMachineConfig.network}`}
+                    target={'__blank'}
+                    sx={{ textDecoration: 'underline' }}
+                    mt={3}>
+                    Solana Explorer
+                  </Typography>
+                </Typography>
+              )}
+            </>
+          )}
           {solscanInfo !== '' && (
             <Typography color="white" fontWeight={'bold'} variant="button" component={'div'}>
               Mint Succeed you can see your transaction at{' '}

@@ -56,13 +56,14 @@
 
 .circles li{
   position: absolute;
-  display: block;
+  /* display: block; */
   list-style: none;
   width: 20px;
   height: 20px;
   background: rgba(255, 255, 255, 0.2);
   animation: animate 25s linear infinite;
   bottom: -150px;
+  z-index: 0;
 }
 
 .circles li:nth-child(1){
@@ -70,6 +71,7 @@
   width: 80px;
   height: 80px;
   animation-delay: 0s;
+  z-index: 0;
 }
 
 
@@ -79,6 +81,7 @@
   height: 20px;
   animation-delay: 2s;
   animation-duration: 12s;
+  z-index: 0;
 }
 
 .circles li:nth-child(3){
@@ -86,6 +89,7 @@
   width: 20px;
   height: 20px;
   animation-delay: 4s;
+  z-index: 0;
 }
 
 .circles li:nth-child(4){
@@ -93,6 +97,7 @@
   width: 60px;
   height: 60px;
   animation-delay: 0s;
+  z-index: 0;
   animation-duration: 18s;
 }
 
@@ -101,6 +106,7 @@
   width: 20px;
   height: 20px;
   animation-delay: 0s;
+  z-index: 0;
 }
 
 .circles li:nth-child(6){
@@ -115,6 +121,7 @@
   width: 150px;
   height: 150px;
   animation-delay: 7s;
+  z-index: 0;
 }
 
 .circles li:nth-child(8){
@@ -123,6 +130,7 @@
   height: 25px;
   animation-delay: 15s;
   animation-duration: 45s;
+  z-index: 0;
 }
 
 .circles li:nth-child(9){
@@ -131,6 +139,7 @@
   height: 15px;
   animation-delay: 2s;
   animation-duration: 35s;
+  z-index: 0;
 }
 
 .circles li:nth-child(10){
@@ -139,6 +148,7 @@
   height: 150px;
   animation-delay: 0s;
   animation-duration: 11s;
+  z-index: 0;
 }
 
 

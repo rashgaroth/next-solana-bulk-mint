@@ -18,37 +18,16 @@ import { useCallback } from 'react'
 import { SessionProvider } from 'next-auth/react'
 import { clusterApiUrl } from '@solana/web3.js'
 import { candyMachineConfig } from 'config/candyMachine'
-import * as anchor from '@project-serum/anchor'
-import { IHomeProps } from 'interfaces/IHomeProps'
 require('@solana/wallet-adapter-react-ui/styles.css')
 
-const getCandyMachineId = (): anchor.web3.PublicKey | undefined => {
-  try {
-    const candyMachineId = new anchor.web3.PublicKey(candyMachineConfig.candyMachineId)
-
-    return candyMachineId
-  } catch (e) {
-    console.log('Failed to construct CandyMachineId', e)
-    return undefined
-  }
-}
-const candyMachineId = getCandyMachineId()
 function MyApp({ Component, pageProps: { session, ...pageProps } }: AppProps) {
+  let network: WalletAdapterNetwork
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem('network', 'devnet')
+    network = localStorage.getItem('network') as WalletAdapterNetwork
+  }
   // The network can be set to 'devnet', 'testnet', or 'mainnet-beta'.
-  const network = candyMachineConfig.network as WalletAdapterNetwork
   const endpoint = useMemo(() => clusterApiUrl(network), [])
-  const rpcHost = candyMachineConfig.rpcHost
-
-  const txTimeout = 30000 // milliseconds (confirm this works for your project)
-  const connection = new anchor.web3.Connection(rpcHost ? rpcHost : anchor.web3.clusterApiUrl('devnet'))
-
-  const props = {
-    txTimeout,
-    candyMachineId,
-    connection,
-    network,
-    rpcHost
-  } as IHomeProps
 
   // @solana/wallet-adapter-wallets includes all the adapters but supports tree shaking and lazy loading --
   // Only the wallets you configure here will be compiled into your application, and only the dependencies
@@ -73,7 +52,7 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }: AppProps) {
         <WalletProvider wallets={wallets} autoConnect onError={onWalletError}>
           <WalletModalProvider>
             <SessionProvider session={session}>
-              <Component {...pageProps} {...props} />
+              <Component {...pageProps} />
             </SessionProvider>
           </WalletModalProvider>
         </WalletProvider>

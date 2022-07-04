@@ -18,6 +18,7 @@ export const toDate = (value?: anchor.BN) => {
   return new Date(value.toNumber() * 1000)
 }
 
+/** @type {*} */
 const numberFormater = new Intl.NumberFormat('en-US', {
   style: 'decimal',
   minimumFractionDigits: 2,

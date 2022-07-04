@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Box, CardMedia, Grid, Typography } from '@mui/material'
+import { Box, Button, CardMedia, Grid, Typography } from '@mui/material'
 import type { NextApiResponse, NextPage } from 'next'
 import Head from 'next/head'
 import Image from 'next/image'
@@ -8,8 +8,9 @@ import { makeStyles } from '@mui/styles'
 import ConnectButton from '../components/ConnectButton'
 import { useWallet } from '@solana/wallet-adapter-react'
 import { useEffect } from 'react'
-import { getSession, signIn, useSession } from 'next-auth/react'
+import { getSession, signIn } from 'next-auth/react'
 import { useRouter } from 'next/router'
+import firebaseProviders from 'providers/FirebaseProviders'
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const useStyles = makeStyles(() => ({
@@ -96,6 +97,11 @@ const LoginPage: NextPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [publicKey])
 
+  const seed = async () => {
+    // TODO
+    await firebaseProviders.seedDatabase()
+  }
+
   return (
     <div>
       <Head>
@@ -132,6 +138,9 @@ const LoginPage: NextPage = () => {
             </Grid>
             <Grid item>
               <ConnectButton />
+            </Grid>
+            <Grid item>
+              <Button onClick={seed}>Firebase</Button>
             </Grid>
           </Grid>
         </Box>

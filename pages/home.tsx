@@ -2,22 +2,21 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 /* eslint-disable jsx-a11y/img-redundant-alt */
 /* eslint-disable @next/next/no-img-element */
-import { Alert, Box, Button, Grid, Snackbar, Stack, Typography } from '@mui/material'
-import { makeStyles, ThemeOfStyles } from '@mui/styles'
-import { NextComponentType, NextPage } from 'next'
+import { Box, Button, Grid, Snackbar, Stack, Typography } from '@mui/material'
+import { makeStyles } from '@mui/styles'
+import { NextPage } from 'next'
 import { Theme } from '@mui/material/styles'
 import Head from 'next/head'
 import styles from 'styles/Dashboard.module.css'
 import Image from 'next/image'
 import { signOut, getSession } from 'next-auth/react'
-import { useAnchorWallet, useWallet } from '@solana/wallet-adapter-react'
+import { useWallet } from '@solana/wallet-adapter-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import MintModal from 'components/MintModal'
 import { candyMachineConfig } from 'config/candyMachine'
-import { WalletAdapterNetwork } from '@solana/wallet-adapter-base'
 import { IHomeProps } from 'interfaces/IHomeProps'
 import * as anchor from '@project-serum/anchor'
-import { Commitment, Connection, LAMPORTS_PER_SOL, PublicKey, Transaction } from '@solana/web3.js'
+import { Cluster, clusterApiUrl, Commitment, Connection, LAMPORTS_PER_SOL, PublicKey, Transaction } from '@solana/web3.js'
 import { AlertState, getAtaForMint, toDate } from 'lib/utils'
 import Countdown, { CountdownRenderProps } from 'react-countdown'
 import {
@@ -27,16 +26,25 @@ import {
   createAccountsForMint,
   getCandyMachineState,
   getCollectionPDA,
+  MintMultipleResult,
+  mintMultipletoken,
   mintOneToken,
+  MintResult,
   SetupState
 } from 'lib/candyMachine'
 import confetti from 'canvas-confetti'
 import CountDownDate from 'components/CountDownDate'
-import styled from '@mui/system'
+
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui'
 import { useRouter } from 'next/router'
 import { GatewayProvider } from '@civic/solana-gateway-react'
 import LoadingBackdrop from 'components/Backdrop'
+import { Settings } from '@mui/icons-material'
+import { SettingsDialog } from 'components/SettingsDialog'
+import { Anchor } from 'interfaces/ISettingsDialog'
+import { WalletAdapterNetwork } from '@solana/wallet-adapter-base'
+import firebaseProviders from 'providers/FirebaseProviders'
+import RegistrationCMStepper from 'components/RegistrationCMStepper'
 
 const cluster = candyMachineConfig.network
 const decimals = 9
@@ -242,8 +250,17 @@ const DownAnimatedNftCard = ({ top, right, img }) => {
     </Box>
   )
 }
+const getCandyMachineId = (addr): anchor.web3.PublicKey | undefined => {
+  try {
+    const candyMachineId = new anchor.web3.PublicKey(addr)
 
-const Home: NextPage = (props: IHomeProps) => {
+    return candyMachineId
+  } catch (e) {
+    console.log('Failed to construct CandyMachineId', e)
+    return undefined
+  }
+}
+const Home: NextPage = () => {
   const classes = useStyles({ bottom: undefined, left: undefined } as IStyleProps)
   const { disconnect } = useWallet()
   const [openModal, setOpenModal] = useState<boolean>(false)
@@ -272,14 +289,54 @@ const Home: NextPage = (props: IHomeProps) => {
     message: '',
     severity: undefined
   })
+  const [mintCount, setMintCount] = useState(1)
   const [needTxnSplit, setNeedTxnSplit] = useState(true)
   const [setupTxn, setSetupTxn] = useState<SetupState>()
   const wallet = useWallet()
   const [candyMachine, setCandyMachine] = useState<CandyMachineAccount>()
   const router = useRouter()
+  const [openSettings, setOpenSettings] = useState(false)
+  const [props, setProps] = useState<IHomeProps>({
+    txTimeout: 30000,
+    candyMachineId: null,
+    connection: new anchor.web3.Connection(candyMachineConfig.rpcHost ? candyMachineConfig.rpcHost : anchor.web3.clusterApiUrl('devnet')),
+    network: candyMachineConfig.network as WalletAdapterNetwork,
+    rpcHost: candyMachineConfig.rpcHost
+  })
+  const [openRegistModal, setOpenRegistModal] = useState(false)
 
   const rpcUrl = props.rpcHost
   const solFeesEstimation = 0.012 // approx of account creation fees
+
+  const initialPage = async () => {
+    setBackdropLoader(true)
+    const userConf = await firebaseProviders.getConfigByWalletAddress(wallet.publicKey.toBase58())
+    // The network can be set to 'devnet', 'testnet', or 'mainnet-beta'.
+    if (userConf !== null) {
+      const network = userConf.mode as WalletAdapterNetwork
+      const rpcHost = userConf.rpcUrl
+
+      const txTimeout = 30000 // milliseconds (confirm this works for your project)
+      const connection = new anchor.web3.Connection(rpcHost ? rpcHost : anchor.web3.clusterApiUrl(userConf.mode as Cluster))
+      const candyMachineId = getCandyMachineId(userConf.candyMachineId)
+      setBackdropLoader(false)
+      setProps({
+        txTimeout,
+        candyMachineId,
+        connection,
+        network,
+        rpcHost
+      })
+    }
+    setBackdropLoader(false)
+  }
+
+  useEffect(() => {
+    if (wallet.connected && props.candyMachineId === null) {
+      console.log('@init!!')
+      initialPage()
+    }
+  }, [wallet.publicKey])
 
   const anchorWallet = useMemo(() => {
     if (!wallet || !wallet.publicKey || !wallet.signAllTransactions || !wallet.signTransaction) {
@@ -478,6 +535,12 @@ const Home: NextPage = (props: IHomeProps) => {
     })
   }
 
+  const toggleSettingsDrawer = (anchor: Anchor, isOpen: boolean) => (event: React.KeyboardEvent | React.MouseEvent) => {
+    // eslint-disable-next-line prettier/prettier
+    if (event.type === 'keydown' && ((event as React.KeyboardEvent).key === 'Tab' || (event as React.KeyboardEvent).key === 'Shift')) { return }
+    setOpenSettings(isOpen)
+  }
+
   const onMint = async (beforeTransactions: Transaction[] = [], afterTransactions: Transaction[] = []) => {
     try {
       if (wallet.connected && candyMachine?.program && wallet.publicKey) {
@@ -514,15 +577,56 @@ const Home: NextPage = (props: IHomeProps) => {
 
         const setupState = setupMint ?? setupTxn
         const mint = setupState?.mint ?? anchor.web3.Keypair.generate()
-        const mintResult = await mintOneToken(candyMachine, wallet.publicKey, mint, beforeTransactions, afterTransactions, setupState)
+        let mintResult: MintMultipleResult | MintResult = null
+        console.log(mintCount, '@mintCount')
+        if (mintCount > 1) {
+          mintResult = await mintMultipletoken(candyMachine, wallet.publicKey, mintCount)
+        } else {
+          mintResult = await mintOneToken(candyMachine, wallet.publicKey, mint, beforeTransactions, afterTransactions, setupState)
+        }
+
+        console.log('@mintSuccess', mintResult)
 
         let status: any = { err: true }
         let metadataStatus = null
-        if (mintResult) {
+        const promises: Promise<void | anchor.web3.SignatureStatus>[] = []
+        const metadataPromises: anchor.web3.AccountInfo<Buffer>[] = []
+        if (!Array.isArray(mintResult.mintTxId) && !Array.isArray(mintResult.metadataKey)) {
           status = await awaitTransactionSignatureConfirmation(mintResult.mintTxId, props.txTimeout, props.connection, true)
 
           metadataStatus = await candyMachine.program.provider.connection.getAccountInfo(mintResult.metadataKey, 'processed')
           console.log('Metadata status: ', !!metadataStatus)
+        } else {
+          for (let index = 0; index < mintResult.mintTxId.length; index++) {
+            promises.push(awaitTransactionSignatureConfirmation(mintResult.mintTxId[index], props.txTimeout, props.connection, true))
+          }
+          console.log(mintResult.metadataKey, '@metadataKey??', !!mintResult.metadataKey)
+          // @ts-ignore
+          for (let secsIndex = 0; secsIndex < mintResult.metadataKey.length; secsIndex++) {
+            console.log(typeof mintResult.metadataKey, '@typeofMetadataKey')
+            console.log(typeof mintResult.metadataKey[secsIndex], '@typeofMetadataKey')
+            console.log(`pusing metadatas at index ${secsIndex} === ${mintResult.metadataKey[secsIndex]}`)
+            const mtS = await candyMachine.program.provider.connection.getAccountInfo(mintResult.metadataKey[secsIndex], 'processed')
+            console.log(mtS, '@mTS')
+            metadataPromises.push(mtS)
+          }
+
+          console.log(metadataPromises, '@metadataPromises')
+
+          Promise.all(promises)
+            .then((data) => {
+              status = data
+              console.log(data, '@promisesTxn')
+            })
+            .catch((err) => {
+              console.log(err, '@errorTxn')
+            })
+        }
+
+        if (Array.isArray(status) && Array.isArray(metadataPromises)) {
+          setBackdropLoader(false)
+          displaySuccess(mint.publicKey)
+          refreshCandyMachineState('processed')
         }
 
         if (status && !status.err && metadataStatus) {
@@ -557,6 +661,7 @@ const Home: NextPage = (props: IHomeProps) => {
         }
       }
     } catch (error: any) {
+      console.log(error, '@errorOnMint!!')
       let message = error.msg || 'Minting failed! Please try again!'
       if (!error.msg) {
         if (!error.message) {
@@ -606,7 +711,8 @@ const Home: NextPage = (props: IHomeProps) => {
   }
 
   const openMintModal = () => {
-    setOpenModal(true)
+    // setOpenModal(true)
+    setOpenRegistModal(true)
   }
 
   const checkSession = async () => {
@@ -625,11 +731,16 @@ const Home: NextPage = (props: IHomeProps) => {
     }
   }
 
+  const onChangeCounter = (counter: string) => {
+    if (mintCount === 0 && counter === 'min') return
+    if (counter === 'min') setMintCount(mintCount - 1)
+    else setMintCount(mintCount + 1)
+  }
+
   useEffect(() => {
     ;(async () => {
       if (anchorWallet) {
         const balance = await props.connection.getBalance(anchorWallet!.publicKey)
-        console.log(balance, '@balance??')
         setBalance(balance / LAMPORTS_PER_SOL)
       }
     })()
@@ -640,7 +751,9 @@ const Home: NextPage = (props: IHomeProps) => {
   }, [wallet])
 
   useEffect(() => {
-    refreshCandyMachineState()
+    if (props.candyMachineId !== null) {
+      refreshCandyMachineState()
+    }
   }, [anchorWallet, props.candyMachineId, props.connection, isEnded, isPresale, refreshCandyMachineState])
 
   useEffect(() => {
@@ -669,6 +782,22 @@ const Home: NextPage = (props: IHomeProps) => {
         <div className={styles.tron}>
           <p className={styles.duckText}>Duck Goes Places</p>
           <Stack direction={'row'} spacing={2} alignItems="center" justifyContent={'end'}>
+            <Button
+              disabled={!isActive && !isEnded && candyMachine?.state.goLiveDate && (!isWLOnly || whitelistTokenBalance > 0)}
+              sx={{
+                zIndex: 1000,
+                backgroundColor:
+                  !isActive && !isEnded && candyMachine?.state.goLiveDate && (!isWLOnly || whitelistTokenBalance > 0)
+                    ? '#919191'
+                    : '#FBA724',
+                px: 3,
+                py: 2.5,
+                borderRadius: 4,
+                '&:hover': { backgroundColor: 'darkorange' }
+              }}
+              onClick={() => setOpenSettings(true)}>
+              <Settings sx={{ color: 'white' }} />
+            </Button>
             <Button
               disabled={!isActive && !isEnded && candyMachine?.state.goLiveDate && (!isWLOnly || whitelistTokenBalance > 0)}
               sx={{
@@ -747,9 +876,13 @@ const Home: NextPage = (props: IHomeProps) => {
           solscanInfo={solanaExplorerLink}
           alertState={alertState}
           onAlertState={(data) => setAlertState(data)}
+          mintCount={mintCount}
+          onChangeMintCount={(counter: string) => onChangeCounter(counter)}
         />
       </GatewayProvider>
       <LoadingBackdrop open={backdropLoader} handleClose={() => setBackdropLoader(false)} />
+      <SettingsDialog open={openSettings} anchor="left" toggleDrawer={toggleSettingsDrawer} />
+      <RegistrationCMStepper open={openRegistModal} handleClose={() => setOpenRegistModal(false)} connection={props.connection} />
       <ul className={styles.circles}>
         <li></li>
         <li></li>

@@ -1,6 +1,23 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
 /** @type {import('next').NextConfig} */
 const withTM = require('next-transpile-modules')(['@blocto/sdk'])
+
+const { env } = process
+const environment = {
+  NEXT_CANDY_MACHINE_CONFIG: process.env.NEXT_CANDY_MACHINE_CONFIG,
+  NEXT_CANDY_MACHINE_ID: process.env.NEXT_CANDY_MACHINE_ID,
+  NEXT_TREASURY_ADDRESS: process.env.NEXT_TREASURY_ADDRESS,
+  NEXT_CANDY_START_DATE: process.env.NEXT_CANDY_START_DATE,
+  NEXT_SOLANA_NETWORK: process.env.NEXT_SOLANA_NETWORK,
+  NEXT_SOLANA_RPC_HOST: process.env.NEXT_SOLANA_RPC_HOST,
+  NEXT_FIREBASE_API_KEY: env.NEXT_FIREBASE_API_KEY,
+  NEXT_FIREBASE_AUTH_DOMAIN: env.NEXT_FIREBASE_AUTH_DOMAIN,
+  NEXT_FIREBASE_PROJECT_ID: env.NEXT_FIREBASE_PROJECT_ID,
+  NEXT_FIREBASE_STORAGE_BUCKET: env.NEXT_FIREBASE_STORAGE_BUCKET,
+  NEXT_FIREBASE_MESSAGING_SENDER_ID: env.NEXT_FIREBASE_MESSAGING_SENDER_ID,
+  NEXT_FIREBASE_APP_ID: env.NEXT_FIREBASE_APP_ID,
+  NEXT_FIREBASE_MEASUREMENT_ID: process.env.NEXT_FIREBASE_MEASUREMENT_ID
+}
 module.exports = withTM({
   reactStrictMode: true,
   webpack5: true,
@@ -16,12 +33,5 @@ module.exports = withTM({
   compiler: {
     styledComponents: true
   },
-  env: {
-    NEXT_CANDY_MACHINE_CONFIG: process.env.NEXT_CANDY_MACHINE_CONFIG,
-    NEXT_CANDY_MACHINE_ID: process.env.NEXT_CANDY_MACHINE_ID,
-    NEXT_TREASURY_ADDRESS: process.env.NEXT_TREASURY_ADDRESS,
-    NEXT_CANDY_START_DATE: process.env.NEXT_CANDY_START_DATE,
-    NEXT_SOLANA_NETWORK: process.env.NEXT_SOLANA_NETWORK,
-    NEXT_SOLANA_RPC_HOST: process.env.NEXT_SOLANA_RPC_HOST
-  }
+  env: environment
 })
