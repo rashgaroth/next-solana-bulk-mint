@@ -6,11 +6,7 @@ import Image from 'next/image'
 import styles from '../styles/Home.module.css'
 import { makeStyles } from '@mui/styles'
 import ConnectButton from '../components/ConnectButton'
-import { useWallet } from '@solana/wallet-adapter-react'
-import { useEffect } from 'react'
-import { getSession, signIn } from 'next-auth/react'
-import { useRouter } from 'next/router'
-import firebaseProviders from 'providers/FirebaseProviders'
+import AuthLayout from 'layouts/AuthLayout'
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const useStyles = makeStyles(() => ({
@@ -44,66 +40,61 @@ interface ILoginResponse extends NextApiResponse {
 
 const LoginPage: NextPage = () => {
   const classes = useStyles()
-  const { publicKey } = useWallet()
-  const routes = useRouter()
+  // const { publicKey } = useWallet()
+  // const routes = useRouter()
 
-  const fetchNonce = async (): Promise<ILoginResponse> => {
-    try {
-      const response = await fetch('/api/login')
+  // const fetchNonce = async (): Promise<ILoginResponse> => {
+  //   try {
+  //     const response = await fetch('/api/login')
 
-      if (response.status != 200) throw new Error('nonce could not be retrieved')
+  //     if (response.status != 200) throw new Error('nonce could not be retrieved')
 
-      const { nonce } = await response.json()
+  //     const { nonce } = await response.json()
 
-      return nonce
-    } catch (error) {
-      throw new Error(error)
-    }
-  }
+  //     return nonce
+  //   } catch (error) {
+  //     throw new Error(error)
+  //   }
+  // }
 
-  const signWallet = async () => {
-    try {
-      const session = await getSession()
-      const nonce = await fetchNonce()
-      if (!session?.user) {
-        const message = `Sign this message for authenticating with your wallet. Nonce: ${nonce}`
-        const encodedMessage = new TextEncoder().encode(message)
-        const signedMessage = await (window as any).solana.request({
-          method: 'signMessage',
-          params: {
-            message: encodedMessage
-          }
-        })
-        signIn('credentials', {
-          publicKey: signedMessage.publicKey,
-          signature: signedMessage.signature,
-          redirect: true,
-          callbackUrl: `${(window as any).location.origin}/home?pk=${signedMessage.publicKey}`
-        })
-      } else {
-        routes.push({
-          pathname: `/home`
-        })
-      }
-    } catch (err) {
-      throw new Error(err)
-    }
-  }
+  // const signWallet = async () => {
+  //   try {
+  //     const session = await getSession()
+  //     const nonce = await fetchNonce()
+  //     if (!session?.user) {
+  //       const message = `Sign this message for authenticating with your wallet. Nonce: ${nonce}`
+  //       const encodedMessage = new TextEncoder().encode(message)
+  //       const signedMessage = await (window as any).solana.request({
+  //         method: 'signMessage',
+  //         params: {
+  //           message: encodedMessage
+  //         }
+  //       })
+  //       const res = await signIn('credentials', {
+  //         publicKey: signedMessage.publicKey,
+  //         signature: signedMessage.signature,
+  //         redirect: false,
+  //         callbackUrl: `${(window as any).location.origin}/home?pk=${signedMessage.publicKey}`
+  //       })
+  //       if (res.ok) {
+  //         routes.push(`${(window as any).location.origin}/home?pk=${signedMessage.publicKey}`, undefined, { shallow: false })
+  //       }
+  //     }
+  //   } catch (err) {
+  //     console.log(err, '@error')
+  //     throw new Error(err)
+  //   }
+  // }
 
-  useEffect(() => {
-    if (publicKey) {
-      signWallet()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [publicKey])
-
-  const seed = async () => {
-    // TODO
-    await firebaseProviders.seedDatabase()
-  }
+  // useEffect(() => {
+  //   if (publicKey) {
+  //     signWallet()
+  //   }
+  //   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, [publicKey])
 
   return (
-    <div>
+    <AuthLayout>
       <Head>
         <title>Duck Goes Places</title>
         <meta name="description" content="NFTs Generator for Duck Goes Places" />
@@ -139,9 +130,9 @@ const LoginPage: NextPage = () => {
             <Grid item>
               <ConnectButton />
             </Grid>
-            <Grid item>
+            {/* <Grid item>
               <Button onClick={seed}>Firebase</Button>
-            </Grid>
+            </Grid> */}
           </Grid>
         </Box>
       </Box>
@@ -157,7 +148,7 @@ const LoginPage: NextPage = () => {
           </span>
         </a>
       </footer>
-    </div>
+    </AuthLayout>
   )
 }
 

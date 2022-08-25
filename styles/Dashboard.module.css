@@ -214,3 +214,10 @@
   background-color: #4E44CE;
   margin: 0 auto;
 }
+
+.disconnectWallet {
+  border-radius: 18px !important;
+  padding: 6px 16px;
+  background-color: #ee37179d;
+  margin: 0 auto;
+}

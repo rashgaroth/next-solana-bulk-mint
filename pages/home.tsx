@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 /* eslint-disable @typescript-eslint/no-extra-semi */
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 /* eslint-disable jsx-a11y/img-redundant-alt */
@@ -16,39 +18,28 @@ import MintModal from 'components/MintModal'
 import { candyMachineConfig } from 'config/candyMachine'
 import { IHomeProps } from 'interfaces/IHomeProps'
 import * as anchor from '@project-serum/anchor'
-import { Cluster, clusterApiUrl, Commitment, Connection, LAMPORTS_PER_SOL, PublicKey, Transaction } from '@solana/web3.js'
+import { Cluster, Commitment, Connection, LAMPORTS_PER_SOL, PublicKey, Transaction } from '@solana/web3.js'
 import { AlertState, getAtaForMint, toDate } from 'lib/utils'
 import Countdown, { CountdownRenderProps } from 'react-countdown'
-import {
-  awaitTransactionSignatureConfirmation,
-  CandyMachineAccount,
-  CANDY_MACHINE_PROGRAM,
-  createAccountsForMint,
-  getCandyMachineState,
-  getCollectionPDA,
-  MintMultipleResult,
-  mintMultipletoken,
-  mintOneToken,
-  MintResult,
-  SetupState
-} from 'lib/candyMachine'
+import { CandyMachineAccount, getCandyMachineState } from 'lib/multiMintCandyMachine'
 import confetti from 'canvas-confetti'
 import CountDownDate from 'components/CountDownDate'
 
-import { WalletMultiButton } from '@solana/wallet-adapter-react-ui'
+import { WalletDisconnectButton, WalletMultiButton } from '@solana/wallet-adapter-react-ui'
 import { useRouter } from 'next/router'
 import { GatewayProvider } from '@civic/solana-gateway-react'
 import LoadingBackdrop from 'components/Backdrop'
-import { Settings } from '@mui/icons-material'
+import { Menu, Settings } from '@mui/icons-material'
 import { SettingsDialog } from 'components/SettingsDialog'
 import { Anchor } from 'interfaces/ISettingsDialog'
 import { WalletAdapterNetwork } from '@solana/wallet-adapter-base'
 import firebaseProviders from 'providers/FirebaseProviders'
 import RegistrationCMStepper from 'components/RegistrationCMStepper'
-
-const cluster = candyMachineConfig.network
-const decimals = 9
-const splTokenName = 'DGP'
+import useModals from 'hooks/useModals'
+import DialogModal from 'components/Modals/DialogModal'
+import HomeMenu from 'components/HomeMenu'
+import AuthLayout from 'layouts/AuthLayout'
+import HorizontalSlider from 'components/HorizontalSlider'
 
 interface IStyleProps {
   left: string | number
@@ -70,12 +61,6 @@ interface IImageList {
 interface IDownImageList {
   id: number
   style: IDownStyleProps
-}
-
-interface IAlertState {
-  open: boolean
-  message: string
-  severity: 'success' | 'info' | 'warning' | 'error' | undefined
 }
 
 const useStyles = makeStyles((theme: Theme) => ({
@@ -197,23 +182,7 @@ const nftDownImageList: Array<IDownImageList> = [
       right: '0',
       img: '/assets/dgp/12.png'
     }
-  },
-  {
-    id: 2,
-    style: {
-      top: '22%',
-      right: '40%',
-      img: '/assets/dgp/14.png'
-    }
   }
-  // {
-  //   id: 3,
-  //   style: {
-  //     top: '45%',
-  //     right: '70%',
-  //     img: '/assets/dgp/15.png'
-  //   }
-  // }
 ]
 
 const AnimatedNftCard = ({ bottom, left, img }) => {
@@ -263,38 +232,24 @@ const getCandyMachineId = (addr): anchor.web3.PublicKey | undefined => {
 const Home: NextPage = () => {
   const classes = useStyles({ bottom: undefined, left: undefined } as IStyleProps)
   const { disconnect } = useWallet()
+  const router = useRouter()
+  const wallet = useWallet()
   const [openModal, setOpenModal] = useState<boolean>(false)
   const [balance, setBalance] = useState<number>()
   const [isMinting, setIsMinting] = useState(false) // true when user got to press MINT
   const [isActive, setIsActive] = useState(false) // true when countdown completes or whitelisted
   const [solanaExplorerLink, setSolanaExplorerLink] = useState<string>('')
   const [itemsAvailable, setItemsAvailable] = useState(0)
-  const [itemsRedeemed, setItemsRedeemed] = useState(0)
   const [itemsRemaining, setItemsRemaining] = useState(0)
-  const [isSoldOut, setIsSoldOut] = useState(false)
-  const [payWithSplToken, setPayWithSplToken] = useState(false)
-  const [price, setPrice] = useState(0)
-  const [priceLabel, setPriceLabel] = useState<string>('SOL')
-  const [whitelistPrice, setWhitelistPrice] = useState(0)
-  const [whitelistEnabled, setWhitelistEnabled] = useState(false)
-  const [isBurnToken, setIsBurnToken] = useState(false)
-  const [whitelistTokenBalance, setWhitelistTokenBalance] = useState(0)
   const [isEnded, setIsEnded] = useState(false)
-  const [endDate, setEndDate] = useState<Date>()
   const [backdropLoader, setBackdropLoader] = useState(false)
   const [isPresale, setIsPresale] = useState(false)
-  const [isWLOnly, setIsWLOnly] = useState(false)
   const [alertState, setAlertState] = useState<AlertState>({
     open: false,
     message: '',
     severity: undefined
   })
-  const [mintCount, setMintCount] = useState(1)
-  const [needTxnSplit, setNeedTxnSplit] = useState(true)
-  const [setupTxn, setSetupTxn] = useState<SetupState>()
-  const wallet = useWallet()
   const [candyMachine, setCandyMachine] = useState<CandyMachineAccount>()
-  const router = useRouter()
   const [openSettings, setOpenSettings] = useState(false)
   const [props, setProps] = useState<IHomeProps>({
     txTimeout: 30000,
@@ -304,12 +259,19 @@ const Home: NextPage = () => {
     rpcHost: candyMachineConfig.rpcHost
   })
   const [openRegistModal, setOpenRegistModal] = useState(false)
-
-  const rpcUrl = props.rpcHost
-  const solFeesEstimation = 0.012 // approx of account creation fees
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
+  const open = Boolean(anchorEl)
+  const { closeDialog, openDialog, showDialog, desc, init, title, errorDialog } = useModals()
 
   const initialPage = async () => {
     setBackdropLoader(true)
+    setProps({
+      txTimeout: 60000,
+      candyMachineId: null,
+      connection: new anchor.web3.Connection(candyMachineConfig.rpcHost ? candyMachineConfig.rpcHost : anchor.web3.clusterApiUrl('devnet')),
+      network: candyMachineConfig.network as WalletAdapterNetwork,
+      rpcHost: candyMachineConfig.rpcHost
+    })
     const userConf = await firebaseProviders.getConfigByWalletAddress(wallet.publicKey.toBase58())
     // The network can be set to 'devnet', 'testnet', or 'mainnet-beta'.
     if (userConf !== null) {
@@ -331,12 +293,9 @@ const Home: NextPage = () => {
     setBackdropLoader(false)
   }
 
-  useEffect(() => {
-    if (wallet.connected && props.candyMachineId === null) {
-      console.log('@init!!')
-      initialPage()
-    }
-  }, [wallet.publicKey])
+  const handleOpenMenu = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget)
+  }
 
   const anchorWallet = useMemo(() => {
     if (!wallet || !wallet.publicKey || !wallet.signAllTransactions || !wallet.signTransaction) {
@@ -361,77 +320,9 @@ const Home: NextPage = () => {
       if (props.candyMachineId) {
         try {
           const cndy = await getCandyMachineState(anchorWallet, props.candyMachineId, connection)
-
-          setCandyMachine(cndy)
           setItemsAvailable(cndy.state.itemsAvailable)
           setItemsRemaining(cndy.state.itemsRemaining)
-          setItemsRedeemed(cndy.state.itemsRedeemed)
-
-          let divider = 1
-          if (decimals) {
-            divider = +('1' + new Array(decimals).join('0').slice() + '0')
-          }
-
-          // detect if using spl-token to mint
-          if (cndy.state.tokenMint) {
-            setPayWithSplToken(true)
-            // Customize your SPL-TOKEN Label HERE
-            // TODO: get spl-token metadata name
-            setPriceLabel(splTokenName)
-            setPrice(cndy.state.price.toNumber() / divider)
-            setWhitelistPrice(cndy.state.price.toNumber() / divider)
-          } else {
-            setPrice(cndy.state.price.toNumber() / LAMPORTS_PER_SOL)
-            setWhitelistPrice(cndy.state.price.toNumber() / LAMPORTS_PER_SOL)
-          }
-
-          // fetch whitelist token balance
-          if (cndy.state.whitelistMintSettings) {
-            setWhitelistEnabled(true)
-            setIsBurnToken(cndy.state.whitelistMintSettings.mode.burnEveryTime)
-            setIsPresale(cndy.state.whitelistMintSettings.presale)
-            setIsWLOnly(!isPresale && cndy.state.whitelistMintSettings.discountPrice === null)
-
-            if (
-              cndy.state.whitelistMintSettings.discountPrice !== null &&
-              cndy.state.whitelistMintSettings.discountPrice !== cndy.state.price
-            ) {
-              if (cndy.state.tokenMint) {
-                setWhitelistPrice(cndy.state.whitelistMintSettings.discountPrice?.toNumber() / divider)
-              } else {
-                setWhitelistPrice(cndy.state.whitelistMintSettings.discountPrice?.toNumber() / LAMPORTS_PER_SOL)
-              }
-            }
-
-            let balance = 0
-            try {
-              const tokenBalance = await props.connection.getTokenAccountBalance(
-                (
-                  await getAtaForMint(cndy.state.whitelistMintSettings.mint, anchorWallet.publicKey)
-                )[0]
-              )
-
-              balance = tokenBalance?.value?.uiAmount || 0
-            } catch (e) {
-              console.error(e)
-              balance = 0
-            }
-            if (commitment !== 'processed') {
-              setWhitelistTokenBalance(balance)
-            }
-            setIsActive(isPresale && !isEnded && balance > 0)
-          } else {
-            setWhitelistEnabled(false)
-          }
-
-          // end the mint when date is reached
-          if (cndy?.state.endSettings?.endSettingType.date) {
-            setEndDate(toDate(cndy.state.endSettings.number))
-            if (cndy.state.endSettings.number.toNumber() < new Date().getTime() / 1000) {
-              setIsEnded(true)
-              setIsActive(false)
-            }
-          }
+          setCandyMachine(cndy)
           // end the mint when amount is reached
           if (cndy?.state.endSettings?.endSettingType.amount) {
             const limit = Math.min(cndy.state.endSettings.number.toNumber(), cndy.state.itemsAvailable)
@@ -450,20 +341,6 @@ const Home: NextPage = () => {
           if (cndy.state.isSoldOut) {
             setIsActive(false)
           }
-
-          const [collectionPDA] = await getCollectionPDA(props.candyMachineId)
-          const collectionPDAAccount = await connection.getAccountInfo(collectionPDA)
-
-          const txnEstimate =
-            892 +
-            (!!collectionPDAAccount && cndy.state.retainAuthority ? 182 : 0) +
-            (cndy.state.tokenMint ? 66 : 0) +
-            (cndy.state.whitelistMintSettings ? 34 : 0) +
-            (cndy.state.whitelistMintSettings?.mode?.burnEveryTime ? 34 : 0) +
-            (cndy.state.gatekeeper ? 33 : 0) +
-            (cndy.state.gatekeeper?.expireOnUse ? 66 : 0)
-
-          setNeedTxnSplit(txnEstimate > 1230)
         } catch (e) {
           if (e instanceof Error) {
             if (e.message === `Account does not exist ${props.candyMachineId}`) {
@@ -503,201 +380,32 @@ const Home: NextPage = () => {
     [anchorWallet, props.candyMachineId, props.rpcHost, isEnded, isPresale, props.connection]
   )
 
-  function displaySuccess(mintPublicKey: any, qty = 1): void {
-    const remaining = itemsRemaining - qty
-    setItemsRemaining(remaining)
-    setIsSoldOut(remaining === 0)
-    if (isBurnToken && whitelistTokenBalance && whitelistTokenBalance > 0) {
-      const balance = whitelistTokenBalance - qty
-      setWhitelistTokenBalance(balance)
-      setIsActive(isPresale && !isEnded && balance > 0)
-    }
-    setSetupTxn(undefined)
-    setItemsRedeemed(itemsRedeemed + qty)
-    if (!payWithSplToken && balance && balance > 0) {
-      setBalance(balance - (whitelistEnabled ? whitelistPrice : price) * qty - solFeesEstimation)
-    }
-    setSolanaExplorerLink(
-      cluster === 'devnet' || cluster === 'testnet'
-        ? 'https://solscan.io/token/' + mintPublicKey + '?cluster=' + cluster
-        : 'https://solscan.io/token/' + mintPublicKey
-    )
-    setIsMinting(false)
-    throwConfetti()
-    setOpenModal(true)
-  }
-
-  function throwConfetti(): void {
-    confetti({
-      particleCount: 400,
-      spread: 70,
-      origin: { y: 0.6 }
-    })
-  }
-
   const toggleSettingsDrawer = (anchor: Anchor, isOpen: boolean) => (event: React.KeyboardEvent | React.MouseEvent) => {
     // eslint-disable-next-line prettier/prettier
     if (event.type === 'keydown' && ((event as React.KeyboardEvent).key === 'Tab' || (event as React.KeyboardEvent).key === 'Shift')) { return }
     setOpenSettings(isOpen)
   }
 
-  const onMint = async (beforeTransactions: Transaction[] = [], afterTransactions: Transaction[] = []) => {
-    try {
-      if (wallet.connected && candyMachine?.program && wallet.publicKey) {
-        setBackdropLoader(true)
-        setIsMinting(true)
-        let setupMint: SetupState | undefined
-        if (needTxnSplit && setupTxn === undefined) {
-          setAlertState({
-            open: true,
-            message: 'Please validate account setup transaction',
-            severity: 'info'
-          })
-          setupMint = await createAccountsForMint(candyMachine, wallet.publicKey)
-          let status: any = { err: true }
-          if (setupMint.transaction) {
-            status = await awaitTransactionSignatureConfirmation(setupMint.transaction, props.txTimeout, props.connection, true)
-          }
-          if (status && !status.err) {
-            setSetupTxn(setupMint)
-            setAlertState({
-              open: true,
-              message: 'Setup transaction succeeded! You can now validate mint transaction',
-              severity: 'info'
-            })
-          } else {
-            setAlertState({
-              open: true,
-              message: 'Mint failed! Please try again!',
-              severity: 'error'
-            })
-            return
-          }
-        }
+  const onError = () => {
+    setOpenModal(true)
+    setIsMinting(false)
+  }
 
-        const setupState = setupMint ?? setupTxn
-        const mint = setupState?.mint ?? anchor.web3.Keypair.generate()
-        let mintResult: MintMultipleResult | MintResult = null
-        console.log(mintCount, '@mintCount')
-        if (mintCount > 1) {
-          mintResult = await mintMultipletoken(candyMachine, wallet.publicKey, mintCount)
-        } else {
-          mintResult = await mintOneToken(candyMachine, wallet.publicKey, mint, beforeTransactions, afterTransactions, setupState)
-        }
+  const onFinish = () => {
+    setOpenModal(true)
+    setIsMinting(false)
+  }
 
-        console.log('@mintSuccess', mintResult)
-
-        let status: any = { err: true }
-        let metadataStatus = null
-        const promises: Promise<void | anchor.web3.SignatureStatus>[] = []
-        const metadataPromises: anchor.web3.AccountInfo<Buffer>[] = []
-        if (!Array.isArray(mintResult.mintTxId) && !Array.isArray(mintResult.metadataKey)) {
-          status = await awaitTransactionSignatureConfirmation(mintResult.mintTxId, props.txTimeout, props.connection, true)
-
-          metadataStatus = await candyMachine.program.provider.connection.getAccountInfo(mintResult.metadataKey, 'processed')
-          console.log('Metadata status: ', !!metadataStatus)
-        } else {
-          for (let index = 0; index < mintResult.mintTxId.length; index++) {
-            promises.push(awaitTransactionSignatureConfirmation(mintResult.mintTxId[index], props.txTimeout, props.connection, true))
-          }
-          console.log(mintResult.metadataKey, '@metadataKey??', !!mintResult.metadataKey)
-          // @ts-ignore
-          for (let secsIndex = 0; secsIndex < mintResult.metadataKey.length; secsIndex++) {
-            console.log(typeof mintResult.metadataKey, '@typeofMetadataKey')
-            console.log(typeof mintResult.metadataKey[secsIndex], '@typeofMetadataKey')
-            console.log(`pusing metadatas at index ${secsIndex} === ${mintResult.metadataKey[secsIndex]}`)
-            const mtS = await candyMachine.program.provider.connection.getAccountInfo(mintResult.metadataKey[secsIndex], 'processed')
-            console.log(mtS, '@mTS')
-            metadataPromises.push(mtS)
-          }
-
-          console.log(metadataPromises, '@metadataPromises')
-
-          Promise.all(promises)
-            .then((data) => {
-              status = data
-              console.log(data, '@promisesTxn')
-            })
-            .catch((err) => {
-              console.log(err, '@errorTxn')
-            })
-        }
-
-        if (Array.isArray(status) && Array.isArray(metadataPromises)) {
-          setBackdropLoader(false)
-          displaySuccess(mint.publicKey)
-          refreshCandyMachineState('processed')
-        }
-
-        if (status && !status.err && metadataStatus) {
-          setAlertState({
-            open: true,
-            message: 'Congratulations! Mint succeeded!',
-            severity: 'success'
-          })
-
-          // update front-end amounts
-          setBackdropLoader(false)
-          displaySuccess(mint.publicKey)
-          refreshCandyMachineState('processed')
-        } else if (status && !status.err) {
-          setBackdropLoader(false)
-          setAlertState({
-            open: true,
-            message:
-              'Mint likely failed! Anti-bot SOL 0.01 fee potentially charged! Check the explorer to confirm the mint failed and if so, make sure you are eligible to mint before trying again.',
-            severity: 'error',
-            hideDuration: 8000
-          })
-          refreshCandyMachineState()
-        } else {
-          setBackdropLoader(false)
-          setAlertState({
-            open: true,
-            message: 'Mint failed! Please try again!',
-            severity: 'error'
-          })
-          refreshCandyMachineState()
-        }
-      }
-    } catch (error: any) {
-      console.log(error, '@errorOnMint!!')
-      let message = error.msg || 'Minting failed! Please try again!'
-      if (!error.msg) {
-        if (!error.message) {
-          message = 'Transaction Timeout! Please try again.'
-        } else if (error.message.indexOf('0x138')) {
-          message = 'Eror Unreadable'
-        } else if (error.message.indexOf('0x137')) {
-          message = `SOLD OUT!`
-        } else if (error.message.indexOf('0x135')) {
-          message = `Insufficient funds to mint. Please fund your wallet.`
-        }
-      } else {
-        if (error.code === 311) {
-          message = `SOLD OUT!`
-        } else if (error.code === 312) {
-          message = `Minting period hasn't started yet.`
-        }
-      }
-
-      setAlertState({
-        open: true,
-        message,
-        severity: 'error'
-      })
-      setBackdropLoader(false)
-    } finally {
-      setIsMinting(false)
-      setBackdropLoader(false)
-    }
+  const onMinting = () => {
+    setBackdropLoader(true)
+    setOpenModal(false)
+    setIsMinting(true)
   }
 
   const disconnectAndSignOut = async () => {
     try {
-      await disconnect()
       await signOut({
-        redirect: true,
+        redirect: false,
         callbackUrl: '/'
       })
     } catch (err) {
@@ -710,32 +418,73 @@ const Home: NextPage = () => {
     setOpenModal(false)
   }
 
-  const openMintModal = () => {
-    // setOpenModal(true)
-    setOpenRegistModal(true)
+  const openMintModal = (candyMachineId: anchor.web3.PublicKey | null) => {
+    if (candyMachineId !== null) {
+      setOpenModal(true)
+    } else {
+      setOpenRegistModal(true)
+    }
   }
 
-  const checkSession = async () => {
-    const session = await getSession()
-    if (!isActive && !isEnded && candyMachine?.state.goLiveDate && (!isWLOnly || whitelistTokenBalance > 0)) {
-      if (!wallet.connected && session !== null) {
-        disconnectAndSignOut()
+  const dialogNegativeButton = () => {
+    closeDialog()
+  }
+
+  const dialogPositiveButton = () => {
+    closeDialog()
+  }
+
+  const onFinishRegistration = async () => {
+    await initialPage()
+    await refreshCandyMachineState()
+  }
+
+  const onClickCreateCandyMachine = async () => {
+    setAnchorEl(null)
+    init('Create candy machine is under development', 'Coming soon!', true)
+    openDialog()
+    // router.push('/multiple/mint', undefined, { shallow: false })
+  }
+
+  const onClickAccount = async () => {
+    setAnchorEl(null)
+    init('Theme is under development', 'Coming soon!', true)
+    openDialog()
+  }
+
+  const onClickSettings = () => {
+    setAnchorEl(null)
+    if (props.candyMachineId === null) {
+      init('You need to setup your candy machine', 'Candy machine is not detected', true)
+      openDialog()
+    } else {
+      setOpenSettings(true)
+    }
+  }
+
+  const toggleMintButton = () => {
+    let active = !isActive || isPresale
+
+    if (active) {
+      if (candyMachine!.state.isWhitelistOnly) {
+        active = false
       }
     }
-  }
 
-  const checkAuthorize = async () => {
-    const session = await getSession()
-    if (session === null) {
-      router.push('/')
+    if (isPresale && candyMachine!.state.goLiveDate && candyMachine!.state.goLiveDate.toNumber() <= new Date().getTime() / 1000) {
+      setIsPresale((candyMachine!.state.isPresale = false))
     }
+
+    setIsActive((candyMachine!.state.isActive = active))
   }
 
-  const onChangeCounter = (counter: string) => {
-    if (mintCount === 0 && counter === 'min') return
-    if (counter === 'min') setMintCount(mintCount - 1)
-    else setMintCount(mintCount + 1)
-  }
+  useEffect(() => {
+    if (wallet.connected && props.candyMachineId === null) {
+      console.log('@init!!')
+      initialPage()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.candyMachineId, wallet.connected, wallet.publicKey])
 
   useEffect(() => {
     ;(async () => {
@@ -744,160 +493,167 @@ const Home: NextPage = () => {
         setBalance(balance / LAMPORTS_PER_SOL)
       }
     })()
-  }, [anchorWallet, props.connection])
-
-  useEffect(() => {
-    checkSession()
-  }, [wallet])
+  }, [anchorWallet, init, openDialog, props.connection])
 
   useEffect(() => {
     if (props.candyMachineId !== null) {
       refreshCandyMachineState()
+    } else {
+      if (!openDialog) {
+        init('You need to setup candy machine config', 'No candy machine found', true)
+        openDialog()
+      }
     }
-  }, [anchorWallet, props.candyMachineId, props.connection, isEnded, isPresale, refreshCandyMachineState])
-
-  useEffect(() => {
-    checkAuthorize()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props])
 
   return (
-    <div className={classes.container}>
-      <Head>
-        <title>Dashboard</title>
-        <meta name="description" content="NFTs Generator for Duck Goes Places" />
-        <meta name="viewport" content="initial-scale=1.0, width=device-width" />
-        <link rel="icon" href="/favicon.ico" />
-      </Head>
-      <Box sx={{ zIndex: 999 }}>
-        <Grid container direction={'column'} spacing={3}>
-          <Grid item>
-            <Typography variant="h1" textAlign={'center'} fontWeight="bolder" className={styles.welcome}>
-              Welcome To DGP NFT
-            </Typography>
-            <Typography variant="h3" textAlign={'center'} color="white">
-              Mint your DGP Now!
-            </Typography>
-          </Grid>
-        </Grid>
-        <div className={styles.tron}>
-          <p className={styles.duckText}>Duck Goes Places</p>
-          <Stack direction={'row'} spacing={2} alignItems="center" justifyContent={'end'}>
-            <Button
-              disabled={!isActive && !isEnded && candyMachine?.state.goLiveDate && (!isWLOnly || whitelistTokenBalance > 0)}
-              sx={{
-                zIndex: 1000,
-                backgroundColor:
-                  !isActive && !isEnded && candyMachine?.state.goLiveDate && (!isWLOnly || whitelistTokenBalance > 0)
-                    ? '#919191'
-                    : '#FBA724',
-                px: 3,
-                py: 2.5,
-                borderRadius: 4,
-                '&:hover': { backgroundColor: 'darkorange' }
-              }}
-              onClick={() => setOpenSettings(true)}>
-              <Settings sx={{ color: 'white' }} />
-            </Button>
-            <Button
-              disabled={!isActive && !isEnded && candyMachine?.state.goLiveDate && (!isWLOnly || whitelistTokenBalance > 0)}
-              sx={{
-                zIndex: 1000,
-                backgroundColor:
-                  !isActive && !isEnded && candyMachine?.state.goLiveDate && (!isWLOnly || whitelistTokenBalance > 0)
-                    ? '#919191'
-                    : '#FBA724',
-                px: 3,
-                py: 2.5,
-                borderRadius: 4,
-                '&:hover': { backgroundColor: 'darkorange' }
-              }}
-              onClick={openMintModal}>
-              <Typography color="white" fontWeight={'bold'} variant="h4">
-                Mint Now
+    <AuthLayout>
+      <div className={classes.container}>
+        <Head>
+          <title>Dashboard</title>
+          <meta name="description" content="NFTs Generator for Duck Goes Places" />
+          <meta name="viewport" content="initial-scale=1.0, width=device-width" />
+          <link rel="icon" href="/favicon.ico" />
+        </Head>
+        <Box sx={{ zIndex: 999 }}>
+          <Grid container direction={'column'} spacing={3}>
+            <Grid item>
+              <Typography variant="h1" textAlign={'center'} fontWeight="bolder" className={styles.welcome}>
+                Welcome To DGP NFT
               </Typography>
-            </Button>
-            <div className={styles.walletContainer}>
-              <ul className={styles.ulWallet}>
-                {wallet ? (
-                  <div className={styles.walletAmount}>
-                    {(balance || 0).toLocaleString()} SOL
-                    <WalletMultiButton className={styles.connectWallet} />
-                  </div>
-                ) : (
-                  <WalletMultiButton className={styles.connectWallet}>Connect Wallet</WalletMultiButton>
-                )}
-              </ul>
-            </div>
-          </Stack>
-          {!isActive && !isEnded && candyMachine?.state.goLiveDate && (!isWLOnly || whitelistTokenBalance > 0) && (
-            <Countdown
-              date={toDate(candyMachine?.state.goLiveDate)}
-              onMount={({ completed }) => completed && setIsActive(!isEnded)}
-              onComplete={() => {
-                setIsActive(!isEnded)
-              }}
-              renderer={(props: CountdownRenderProps) => <CountDownDate {...props} />}
-            />
-          )}
-        </div>
-      </Box>
-      {nftImageList.map((x) => (
-        <AnimatedNftCard bottom={x.style.bottom} left={x.style.left} key={x.id} img={x.style.img} />
-      ))}
-      {nftDownImageList.map((x) => (
-        <DownAnimatedNftCard top={x.style.top} right={x.style.right} key={x.id} img={x.style.img} />
-      ))}
-      <GatewayProvider
-        wallet={{
-          publicKey: wallet.publicKey || new PublicKey(CANDY_MACHINE_PROGRAM),
-          //@ts-ignore
-          signTransaction: wallet.signTransaction
-        }}
-        // // Replace with following when added
-        // gatekeeperNetwork={candyMachine.state.gatekeeper_network}
-        gatekeeperNetwork={candyMachine?.state?.gatekeeper?.gatekeeperNetwork} // This is the ignite (captcha) network
-        /// Don't need this for mainnet
-        clusterUrl={rpcUrl}
-        cluster={cluster}
-        options={{ autoShowModal: false }}>
+              <Typography variant="h3" textAlign={'center'} color="white">
+                Mint your DGP Now!
+              </Typography>
+            </Grid>
+          </Grid>
+          <div className={styles.tron}>
+            <p className={styles.duckText}>Duck Goes Places</p>
+            <Stack direction={'row'} spacing={2} alignItems="center" justifyContent={'end'}>
+              <Button
+                // @ts-ignore
+                disabled={!isActive && !isEnded && candyMachine?.state.goLiveDate}
+                sx={{
+                  zIndex: 1000,
+                  backgroundColor: !isActive && !isEnded && candyMachine?.state.goLiveDate ? '#919191' : '#FBA724',
+                  px: 3,
+                  py: 2.5,
+                  borderRadius: 4,
+                  '&:hover': { backgroundColor: 'darkorange' }
+                }}
+                onClick={handleOpenMenu}>
+                <Menu sx={{ color: 'white' }} />
+              </Button>
+              <HomeMenu
+                anchorEl={anchorEl}
+                handleClose={() => setAnchorEl(null)}
+                open={open}
+                onClickAccount={onClickAccount}
+                onClickCreateCandyMachine={onClickCreateCandyMachine}
+                onClickSetting={onClickSettings}
+                onClickSugar={() => {
+                  router.push('/multiple/mint')
+                }}
+              />
+              <Button
+                // @ts-ignore
+                disabled={!isActive && !isEnded && candyMachine?.state.goLiveDate}
+                sx={{
+                  zIndex: 1000,
+                  backgroundColor: !isActive && !isEnded && candyMachine?.state.goLiveDate ? '#919191' : '#FBA724',
+                  px: 3,
+                  py: 2.5,
+                  borderRadius: 4,
+                  '&:hover': { backgroundColor: 'darkorange' }
+                }}
+                onClick={() => openMintModal(props.candyMachineId)}>
+                <Typography color="white" fontWeight={'bold'} variant="h4">
+                  {props.candyMachineId !== null ? 'Mint Now' : 'Setup Config'}
+                </Typography>
+              </Button>
+              <div className={styles.walletContainer}>
+                <ul className={styles.ulWallet}>
+                  {wallet ? (
+                    <div className={styles.walletAmount}>
+                      {(balance || 0).toLocaleString()} SOL
+                      <WalletMultiButton className={styles.connectWallet} />
+                      <WalletDisconnectButton
+                        className={styles.disconnectWallet}
+                        onClick={async () => {
+                          await disconnectAndSignOut()
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <WalletMultiButton className={styles.connectWallet}>Connect Wallet</WalletMultiButton>
+                  )}
+                </ul>
+              </div>
+            </Stack>
+            {!isActive && !isEnded && candyMachine?.state.goLiveDate && (
+              <Countdown
+                date={toDate(candyMachine?.state.goLiveDate)}
+                onMount={({ completed }) => completed && setIsActive(!isEnded)}
+                onComplete={toggleMintButton}
+                renderer={(props: CountdownRenderProps) => <CountDownDate {...props} />}
+              />
+            )}
+          </div>
+        </Box>
+        {nftImageList.map((x) => (
+          <AnimatedNftCard bottom={x.style.bottom} left={x.style.left} key={x.id} img={x.style.img} />
+        ))}
+        {nftDownImageList.map((x) => (
+          <DownAnimatedNftCard top={x.style.top} right={x.style.right} key={x.id} img={x.style.img} />
+        ))}
+        {/* {candyMachine?.state.isActive && candyMachine?.state.gatekeeper && wallet.publicKey && wallet.signTransaction ? ( */}
         <MintModal
           handleClose={closeMintModal}
           open={openModal}
-          itemsAvailable={itemsAvailable}
-          totalMinted={itemsRedeemed}
-          onMint={onMint}
-          candyMachine={candyMachine}
-          isActive={isActive}
-          isEnded={isEnded}
-          isMinting={isMinting}
-          isSoldOut={isSoldOut}
-          itemsRemaining={itemsRemaining}
-          onFinishVerified={() => setOpenModal(true)}
           solscanInfo={solanaExplorerLink}
           alertState={alertState}
           onAlertState={(data) => setAlertState(data)}
-          mintCount={mintCount}
-          onChangeMintCount={(counter: string) => onChangeCounter(counter)}
+          isMinting={isMinting}
+          itemsRemaining={itemsRemaining}
+          totalMinted={itemsAvailable}
+          onError={onError}
+          onFinish={onFinish}
+          onMinting={onMinting}
         />
-      </GatewayProvider>
-      <LoadingBackdrop open={backdropLoader} handleClose={() => setBackdropLoader(false)} />
-      <SettingsDialog open={openSettings} anchor="left" toggleDrawer={toggleSettingsDrawer} />
-      <RegistrationCMStepper open={openRegistModal} handleClose={() => setOpenRegistModal(false)} connection={props.connection} />
-      <ul className={styles.circles}>
-        <li></li>
-        <li></li>
-        <li></li>
-        <li></li>
-        <li></li>
-        <li></li>
-        <li></li>
-        <li></li>
-        <li></li>
-        <li></li>
-        <li></li>
-        <li></li>
-      </ul>
-    </div>
+        <LoadingBackdrop open={backdropLoader} handleClose={() => setBackdropLoader(false)} />
+        <SettingsDialog open={openSettings} anchor="left" toggleDrawer={toggleSettingsDrawer} onFinish={onFinishRegistration} />
+        <RegistrationCMStepper
+          open={openRegistModal}
+          handleClose={() => setOpenRegistModal(false)}
+          connection={props.connection}
+          onFinish={onFinishRegistration}
+        />
+        <DialogModal
+          desc={desc}
+          title={title}
+          handleClose={closeDialog}
+          open={showDialog}
+          negativeButton={dialogNegativeButton}
+          positivieButton={dialogPositiveButton}
+          isError={errorDialog}
+        />
+        <HorizontalSlider />
+        <ul className={styles.circles}>
+          <li></li>
+          <li></li>
+          <li></li>
+          <li></li>
+          <li></li>
+          <li></li>
+          <li></li>
+          <li></li>
+          <li></li>
+          <li></li>
+          <li></li>
+          <li></li>
+        </ul>
+      </div>
+    </AuthLayout>
   )
 }
 

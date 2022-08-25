@@ -1,5 +1,7 @@
-/* eslint-disable @typescript-eslint/no-empty-function */
+/* eslint-disable @typescript-eslint/no-extra-semi */
 /* eslint-disable no-async-promise-executor */
+/* eslint-disable no-empty */
+/* eslint-disable @typescript-eslint/no-empty-function */
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 import {
   Keypair,
@@ -129,6 +131,8 @@ export const sendTransactions = async (
     const instructions = instructionSet[i]
     const signers = signersSet[i]
 
+    console.log(instructions, '@instructions?')
+
     if (instructions.length === 0) {
       continue
     }
@@ -205,10 +209,12 @@ export const sendTransaction = async (
   if (!wallet.publicKey) throw new WalletNotConnectedError()
 
   let transaction: Transaction
-  if (instructions instanceof Transaction) {
+  if (typeof instructions === 'object') {
+    // @ts-ignore
     transaction = instructions
   } else {
     transaction = new Transaction()
+    // @ts-ignore
     instructions.forEach((instruction) => transaction.add(instruction))
     transaction.recentBlockhash = (block || (await connection.getRecentBlockhash(commitment))).blockhash
 
@@ -355,9 +361,7 @@ export async function sendSignedTransaction({
     let simulateResult: SimulatedTransactionResponse | null = null
     try {
       simulateResult = (await simulateTransaction(connection, signedTransaction, 'single')).value
-    } catch (e) {
-      console.error(e)
-    }
+    } catch (e) {}
     if (simulateResult && simulateResult.err) {
       if (simulateResult.logs) {
         for (let i = simulateResult.logs.length - 1; i >= 0; --i) {
@@ -453,7 +457,6 @@ async function awaitTransactionSignatureConfirmation(
     }
     while (!done && queryStatus) {
       // eslint-disable-next-line no-loop-func
-      // eslint-disable-next-line @typescript-eslint/no-extra-semi
       ;(async () => {
         try {
           const signatureStatuses = await connection.getSignatureStatuses([txid])
@@ -484,7 +487,7 @@ async function awaitTransactionSignatureConfirmation(
   })
 
   //@ts-ignore
-  if (connection._signatureSubscriptions[subId]) connection.removeSignatureListener(subId)
+  if (connection._signatureSubscriptions) connection.removeSignatureListener(subId)
   done = true
   console.log('Returning status', status)
   return status

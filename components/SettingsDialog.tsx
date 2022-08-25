@@ -1,7 +1,13 @@
 import { Settings } from '@mui/icons-material'
-import { Box, Button, Drawer, Grid, Stack, Theme, Typography } from '@mui/material'
+import { LoadingButton } from '@mui/lab'
+import { Alert, Box, Button, Drawer, Grid, Snackbar, Stack, Theme, Typography } from '@mui/material'
 import { makeStyles } from '@mui/styles'
+import { useWallet } from '@solana/wallet-adapter-react'
+import { candyMachineConfig } from 'config/candyMachine'
 import { ISettingsDialog } from 'interfaces/ISettingsDialog'
+import { AlertState } from 'lib/utils'
+import firebaseProviders from 'providers/FirebaseProviders'
+import { ISubConfig } from 'providers/interfaces/IConfig'
 import React, { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useSprings, animated } from 'react-spring'
@@ -12,6 +18,7 @@ type SolanaTextInput = {
   a: string
   link: string
   t: string
+  mdl: string
 }
 
 const solanaTextInputList: SolanaTextInput[] = [
@@ -20,21 +27,32 @@ const solanaTextInputList: SolanaTextInput[] = [
     placeholder: 'Candy Machine Address',
     a: 'How? 🤔',
     link: 'https://docs.metaplex.com/candy-machine-v2/creating-candy-machine',
-    t: 'Candy Machine ID'
+    t: 'Candy Machine ID',
+    mdl: 'candyMachineId'
   },
   {
     register: 'candyMachineStartDate',
     placeholder: 'Candy Machine Start Date',
     a: 'What is that? 🤔',
     link: 'https://docs.metaplex.com/candy-machine-v2/configuration',
-    t: 'Start Date (in unixTimestamp)'
+    t: 'Start Date (in unixTimestamp)',
+    mdl: 'candyStartDate'
   },
   {
     register: 'treasuryAccount',
     placeholder: 'Solana Account',
     a: 'What is that? 🤔',
     link: 'https://docs.metaplex.com/candy-machine-v2/configuration',
-    t: 'Solana Treasury Account'
+    t: 'Solana Treasury Account',
+    mdl: 'trasuryAddress'
+  },
+  {
+    register: 'rpcUrl',
+    placeholder: 'RPC Url',
+    a: 'What is that? 🤔',
+    link: 'https://docs.solana.com/cluster/rpc-endpoints',
+    t: 'Default: ' + candyMachineConfig.rpcHost,
+    mdl: 'rpcUrl'
   }
 ]
 
@@ -62,9 +80,26 @@ const useStyles = makeStyles((theme: Theme) => ({
   }
 }))
 
-const SolanaForm = () => {
+const SolanaForm = ({ onFinish }) => {
+  const wallet = useWallet()
   const { register, handleSubmit } = useForm()
   const [isFocused, setIsFocused] = useState({ focused: false, index: 0 })
+  const [settingsForm, setSettingsForm] = React.useState<ISubConfig>({
+    candyMachineId: '',
+    candyStartDate: '',
+    trasuryAddress: '',
+    rpcUrl: '',
+    id: '',
+    walletAddress: '',
+    mode: ''
+  })
+  const [alertState, setAlertState] = React.useState<AlertState>({
+    open: false,
+    message: '',
+    severity: undefined
+  })
+  const [loading, setLoading] = useState(false)
+  const [disabledForm, setDisabledForm] = useState(false)
 
   const [springs, api] = useSprings(solanaTextInputList.length, (index) =>
     isFocused.focused
@@ -96,6 +131,17 @@ const SolanaForm = () => {
     setIsFocused({ focused: focus === 1 ? true : false, index })
   }
 
+  const initData = async () => {
+    try {
+      const initValue = await firebaseProviders.getUserConfigByWalletAddress(wallet.publicKey.toBase58())
+      if (Object.keys(initValue).length > 0) {
+        setSettingsForm(initValue)
+      }
+    } catch (err) {
+      console.log(err, '@errorWhenGetSubConfig')
+    }
+  }
+
   useEffect(() => {
     api.start((apiIndex) =>
       isFocused.focused && isFocused.index === apiIndex
@@ -124,8 +170,34 @@ const SolanaForm = () => {
     )
   }, [api, isFocused])
 
-  const onSubmit = (data) => {
-    console.log(data)
+  useEffect(() => {
+    initData()
+  }, [null])
+
+  const onSubmit = async () => {
+    setLoading(true)
+    setDisabledForm(true)
+    try {
+      const walletAddress = await wallet.publicKey.toBase58()
+      const updateSettingsData = await firebaseProviders.updateSettingsSubConfig(walletAddress, settingsForm)
+      if (Object.keys(updateSettingsData).length > 0) {
+        setAlertState({
+          open: true,
+          message: 'Successfull Updating the data!',
+          severity: 'success'
+        })
+        setLoading(false)
+        setDisabledForm(false)
+        onFinish()
+      }
+    } catch (error) {
+      setDisabledForm(false)
+      setAlertState({
+        open: true,
+        message: error.message || 'Some Error Occured',
+        severity: 'error'
+      })
+    }
   }
 
   return (
@@ -141,15 +213,24 @@ const SolanaForm = () => {
           </Typography>
           <animated.input
             style={p}
+            disabled={disabledForm}
             {...register(solanaTextInputList[i].register)}
             placeholder={solanaTextInputList[i].placeholder}
             onFocus={() => handleOnClick(i, 1)}
             onBlur={() => handleOnClick(i, 0)}
+            value={settingsForm !== null ? settingsForm[solanaTextInputList[i]['mdl']] : 'Loading ...'}
+            onChange={(e) => {
+              setSettingsForm({
+                ...settingsForm,
+                [solanaTextInputList[i].mdl]: e.target.value
+              })
+            }}
           />
         </Stack>
       ))}
       <Grid container direction="row" alignItems="end" justifyContent={'end'} justifyItems="end">
-        <Button
+        <LoadingButton
+          loading={loading}
           sx={{
             zIndex: 1000,
             backgroundColor: '#FBA724',
@@ -163,15 +244,24 @@ const SolanaForm = () => {
           <Typography color="white" fontWeight={'bold'}>
             Update
           </Typography>
-        </Button>
+        </LoadingButton>
       </Grid>
+      <Snackbar open={alertState.open} autoHideDuration={6000} onClose={() => setAlertState({ ...alertState, open: false })}>
+        <Alert onClose={() => setAlertState({ ...alertState, open: false })} severity={alertState.severity}>
+          {alertState.message}
+        </Alert>
+      </Snackbar>
     </form>
   )
 }
 
 const drawerWidth = 450
-export function SettingsDialog({ anchor, toggleDrawer, open }: ISettingsDialog) {
+export function SettingsDialog({ anchor, toggleDrawer, open, onFinish }: ISettingsDialog) {
   const classes = useStyles()
+  const onFinishForm = () => {
+    toggleDrawer(anchor, false)
+    onFinish()
+  }
   return (
     <React.Fragment key={'aa202'}>
       <Drawer
@@ -194,7 +284,7 @@ export function SettingsDialog({ anchor, toggleDrawer, open }: ISettingsDialog) 
               </Typography>
               <Settings sx={{ color: 'white' }} />
             </Stack>
-            <SolanaForm />
+            <SolanaForm onFinish={onFinishForm} />
           </Stack>
         </Box>
       </Drawer>

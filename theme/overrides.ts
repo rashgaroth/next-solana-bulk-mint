@@ -9,7 +9,7 @@ export default function componentStyleOverrides(theme: IPalette) {
           borderRadius: '8px',
           p: 4,
           '&:hover': {
-            backgroundColor: theme.text[200],
+            backgroundColor: theme.primary.light,
             color: theme.background.default
           },
           backgroundColor: theme.background.default,

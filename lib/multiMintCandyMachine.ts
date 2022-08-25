@@ -1,14 +1,12 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable @typescript-eslint/no-extra-semi */
-/* eslint-disable @typescript-eslint/no-empty-function */
 /* eslint-disable no-async-promise-executor */
+/* eslint-disable @typescript-eslint/no-extra-semi */
 /* eslint-disable @typescript-eslint/ban-ts-comment */
-
+/* eslint-disable @typescript-eslint/no-empty-function */
 import * as anchor from '@project-serum/anchor'
 
 import { MintLayout, TOKEN_PROGRAM_ID, Token } from '@solana/spl-token'
 import { SystemProgram, Transaction, SYSVAR_SLOT_HASHES_PUBKEY } from '@solana/web3.js'
-import { sendTransactions, SequenceType } from './connection'
+import { sendTransactions, SequenceType } from './multiConnection'
 
 import { CIVIC, getAtaForMint, getNetworkExpire, getNetworkToken, SPL_ASSOCIATED_TOKEN_ACCOUNT_PROGRAM_ID } from './utils'
 
@@ -112,10 +110,8 @@ export const awaitTransactionSignatureConfirmation = async (
   })
 
   //@ts-ignore
-  try {
+  if (connection._signatureSubscriptions) {
     connection.removeSignatureListener(subId)
-  } catch (e) {
-    // ignore
   }
   done = true
   console.log('Returning status', status)
@@ -250,13 +246,6 @@ export type SetupState = {
   transaction: string
 }
 
-/**
- *
- *
- * @param {CandyMachineAccount} candyMachine
- * @param {anchor.web3.PublicKey} payer
- * @return {*}  {Promise<SetupState>}
- */
 export const createAccountsForMint = async (candyMachine: CandyMachineAccount, payer: anchor.web3.PublicKey): Promise<SetupState> => {
   const mint = anchor.web3.Keypair.generate()
   const userTokenAccountAddress = (await getAtaForMint(mint.publicKey, payer))[0]
@@ -296,30 +285,19 @@ export const createAccountsForMint = async (candyMachine: CandyMachineAccount, p
   }
 }
 
-export type MintResult = {
-  mintTxId: string | string[]
-  metadataKey: anchor.web3.PublicKey | anchor.web3.PublicKey[]
+type MintResult = {
+  mintTxIds: string[]
+  metadataKeys: anchor.web3.PublicKey[]
 }
 
-/**
- *
- *
- * @param {CandyMachineAccount} candyMachine
- * @param {anchor.web3.PublicKey} payer
- * @param {anchor.web3.Keypair} mint
- * @param {Transaction[]} [beforeTransactions=[]]
- * @param {Transaction[]} [afterTransactions=[]]
- * @param {SetupState} [setupState]
- * @return {*}  {(Promise<MintResult | null>)}
- */
 export const mintOneToken = async (
   candyMachine: CandyMachineAccount,
   payer: anchor.web3.PublicKey,
-  mint: anchor.web3.Keypair,
   beforeTransactions: Transaction[] = [],
   afterTransactions: Transaction[] = [],
   setupState?: SetupState
-): Promise<MintResult | null> => {
+): Promise<MintResult[] | []> => {
+  const mint = setupState?.mint ?? anchor.web3.Keypair.generate()
   const userTokenAccountAddress = (await getAtaForMint(mint.publicKey, payer))[0]
 
   const userPayingAccountAddress = candyMachine.state.tokenMint ? (await getAtaForMint(candyMachine.state.tokenMint, payer))[0] : payer
@@ -439,8 +417,10 @@ export const mintOneToken = async (
   if (collectionPDAAccount && candyMachine.state.retainAuthority) {
     try {
       const collectionData = (await candyMachine.program.account.collectionPda.fetch(collectionPDA)) as CollectionData
+      console.log(collectionData)
       const collectionMint = collectionData.mint
       const collectionAuthorityRecord = await getCollectionAuthorityRecordPDA(collectionMint, collectionPDA)
+      console.log(collectionMint)
       if (collectionMint) {
         const collectionMetadata = await getMetadata(collectionMint)
         const collectionMasterEdition = await getMasterEdition(collectionMint)
@@ -488,45 +468,38 @@ export const mintOneToken = async (
         afterTransactions
       )
     ).txs.map((t) => t.txid)
-    const mintTxn = txns[0]
-    return {
-      mintTxId: mintTxn,
-      metadataKey: metadataAddress
-    }
+    return [
+      {
+        mintTxIds: txns,
+        metadataKeys: [metadataAddress]
+      }
+    ]
   } catch (e) {
     console.log(e)
   }
-  return null
+  return []
 }
 
-/**
- *
- *
- * @interface MintMultipleResult
- */
-export interface MintMultipleResult {
-  mintTxId: string[]
-  metadataKey: anchor.web3.PublicKey[]
+export const shortenAddress = (address: string, chars = 4): string => {
+  return `${address.slice(0, chars)}...${address.slice(-chars)}`
 }
 
-/**
- *
- *
- * @param {CandyMachineAccount} candyMachine
- * @param {anchor.web3.PublicKey} payer
- * @param {number} [_quantity=2]
- * @return {*}  {(Promise<MintMultipleResult | null>)}
- */
-export const mintMultipletoken = async (
+const sleep = (ms: number): Promise<void> => {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+export const mintMultipleToken = async (
   candyMachine: CandyMachineAccount,
   payer: anchor.web3.PublicKey,
-  _quantity = 2
-): Promise<MintMultipleResult | null> => {
+  quantity = 2,
+  beforeTransactions: Transaction[] = [],
+  afterTransactions: Transaction[] = []
+): Promise<MintResult[] | []> => {
   const signersMatrix = []
   const instructionsMatrix = []
-  const metadatasAddr = []
-  const cleanupInstructions = []
-  for (let i = 0; i < _quantity; i++) {
+  const metadataAddresses = []
+
+  for (let index = 0; index < quantity; index++) {
     const mint = anchor.web3.Keypair.generate()
     const userTokenAccountAddress = (await getAtaForMint(mint.publicKey, payer))[0]
 
@@ -534,10 +507,8 @@ export const mintMultipletoken = async (
 
     const candyMachineAddress = candyMachine.id
     const remainingAccounts = []
-    // const instructions = []
-    // const signers: anchor.web3.Keypair[] = []
-
     const signers: anchor.web3.Keypair[] = [mint]
+    const cleanupInstructions = []
     const instructions = [
       anchor.web3.SystemProgram.createAccount({
         fromPubkey: payer,
@@ -551,13 +522,13 @@ export const mintMultipletoken = async (
       Token.createMintToInstruction(TOKEN_PROGRAM_ID, mint.publicKey, userTokenAccountAddress, payer, [], 1)
     ]
 
+    // CIVIC
     if (candyMachine.state.gatekeeper) {
       remainingAccounts.push({
         pubkey: (await getNetworkToken(payer, candyMachine.state.gatekeeper.gatekeeperNetwork))[0],
         isWritable: true,
         isSigner: false
       })
-
       if (candyMachine.state.gatekeeper.expireOnUse) {
         remainingAccounts.push({
           pubkey: CIVIC,
@@ -571,6 +542,8 @@ export const mintMultipletoken = async (
         })
       }
     }
+
+    // WHITELIST/PRE-SALE
     if (candyMachine.state.whitelistMintSettings) {
       const mint = new anchor.web3.PublicKey(candyMachine.state.whitelistMintSettings.mint)
 
@@ -583,6 +556,7 @@ export const mintMultipletoken = async (
 
       if (candyMachine.state.whitelistMintSettings.mode.burnEveryTime) {
         const whitelistBurnAuthority = anchor.web3.Keypair.generate()
+
         remainingAccounts.push({
           pubkey: mint,
           isWritable: true,
@@ -604,8 +578,10 @@ export const mintMultipletoken = async (
       }
     }
 
+    // SPL-TOKEN TO MINT
     if (candyMachine.state.tokenMint) {
       const transferAuthority = anchor.web3.Keypair.generate()
+
       signers.push(transferAuthority)
       remainingAccounts.push({
         pubkey: userPayingAccountAddress,
@@ -617,6 +593,7 @@ export const mintMultipletoken = async (
         isWritable: false,
         isSigner: true
       })
+
       instructions.push(
         Token.createApproveInstruction(
           TOKEN_PROGRAM_ID,
@@ -629,13 +606,12 @@ export const mintMultipletoken = async (
       )
       cleanupInstructions.push(Token.createRevokeInstruction(TOKEN_PROGRAM_ID, userPayingAccountAddress, payer, []))
     }
-    const metadataAddress = await getMetadata(mint.publicKey)
     const masterEdition = await getMasterEdition(mint.publicKey)
-    console.log('@pusingMetadataAddress at index ' + i)
-    metadatasAddr.push(metadataAddress)
+    const metadataAddress = await getMetadata(mint.publicKey)
+    metadataAddresses.push(metadataAddress)
+
     const [candyMachineCreator, creatorBump] = await getCandyMachineCreator(candyMachineAddress)
 
-    console.log(remainingAccounts.map((rm) => rm.pubkey.toBase58()))
     instructions.push(
       await candyMachine.program.instruction.mintNft(creatorBump, {
         accounts: {
@@ -666,8 +642,10 @@ export const mintMultipletoken = async (
     if (collectionPDAAccount && candyMachine.state.retainAuthority) {
       try {
         const collectionData = (await candyMachine.program.account.collectionPda.fetch(collectionPDA)) as CollectionData
+        console.log(collectionData)
         const collectionMint = collectionData.mint
         const collectionAuthorityRecord = await getCollectionAuthorityRecordPDA(collectionMint, collectionPDA)
+        console.log(collectionMint)
         if (collectionMint) {
           const collectionMetadata = await getMetadata(collectionMint)
           const collectionMasterEdition = await getMasterEdition(collectionMint)
@@ -695,17 +673,12 @@ export const mintMultipletoken = async (
         console.error(error)
       }
     }
-    instructionsMatrix.push(instructions)
+
     signersMatrix.push(signers)
     instructionsMatrix.push(instructions)
-    if (cleanupInstructions.length > 0) {
-      instructionsMatrix.push(cleanupInstructions)
-      signersMatrix.push([])
-    }
   }
 
   try {
-    console.log('onTry!!', instructionsMatrix, signersMatrix)
     const txns = (
       await sendTransactions(
         candyMachine.program.provider.connection,
@@ -717,39 +690,18 @@ export const mintMultipletoken = async (
         () => {},
         () => false,
         undefined,
-        [],
-        []
+        beforeTransactions,
+        afterTransactions
       )
     ).txs.map((t) => t.txid)
-    console.log(txns, '@transactionSignature!!')
-    return {
-      mintTxId: txns,
-      metadataKey: metadatasAddr
-    }
-  } catch (err) {
-    console.log(err, '@errorMultipleMint')
+    return [
+      {
+        mintTxIds: txns,
+        metadataKeys: metadataAddresses
+      }
+    ]
+  } catch (e) {
+    console.log(e)
   }
-
-  return null
-}
-
-/**
- *
- *
- * @param {string} address
- * @param {number} [chars=4]
- * @return {*}  {string}
- */
-export const shortenAddress = (address: string, chars = 4): string => {
-  return `${address.slice(0, chars)}...${address.slice(-chars)}`
-}
-
-/**
- *
- *
- * @param {number} ms
- * @return {*}  {Promise<void>}
- */
-const sleep = (ms: number): Promise<void> => {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+  return []
 }

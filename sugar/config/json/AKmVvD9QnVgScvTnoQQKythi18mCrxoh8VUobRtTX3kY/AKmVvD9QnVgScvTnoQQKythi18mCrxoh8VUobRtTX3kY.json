@@ -1,0 +1,20 @@
+{
+  "price": 1.8,
+  "number": 3,
+  "symbol": "ADA",
+  "sellerFeeBasisPoints": 500,
+  "gatekeeper": null,
+  "solTreasuryAccount": "AKmVvD9QnVgScvTnoQQKythi18mCrxoh8VUobRtTX3kY",
+  "splTokenAccount": null,
+  "splToken": null,
+  "goLiveDate": "2022-04-22T00:00:00Z",
+  "endSettings": null,
+  "whitelistMintSettings": null,
+  "hiddenSettings": null,
+  "uploadMethod": "nft_storage",
+  "awsS3Bucket": null,
+  "retainAuthority": true,
+  "nftStorageAuthToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkaWQ6ZXRocjoweDRENDM4MzEwQkIzNDFDMzZkNzYxNGEwOTkwNDc1QTk4QzAxQjkzM2EiLCJpc3MiOiJuZnQtc3RvcmFnZSIsImlhdCI6MTY1ODc2NzI5NTE5NCwibmFtZSI6InRlc3QtbmZ0In0.YVgikUCkADwpSQFZZWsqKhjExuzp_BRfLnz8jMF-ybY",
+  "isMutable": true,
+  "creators": [{ "address": "AKmVvD9QnVgScvTnoQQKythi18mCrxoh8VUobRtTX3kY", "share": 100 }]
+}

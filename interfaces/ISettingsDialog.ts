@@ -4,4 +4,5 @@ export interface ISettingsDialog {
   anchor: Anchor
   toggleDrawer: any
   open: boolean
+  onFinish: () => void
 }

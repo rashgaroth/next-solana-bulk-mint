@@ -19,9 +19,7 @@ const nextAuthOptions = (req: NextApiRequest, res: NextApiResponse) => {
           const signatureBytes = bs58.decode(credentials.signature)
 
           const result = nacl.sign.detached.verify(messageBytes, signatureBytes, publicKeyBytes)
-          console.log(result, '@resultFromBe')
           if (!result) {
-            console.log(`authentication failed`)
             throw new Error('user can not be authenticated')
           }
 

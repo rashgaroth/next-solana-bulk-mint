@@ -1,41 +1,20 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 /* eslint-disable jsx-a11y/anchor-is-valid */
-import {
-  Alert,
-  Avatar,
-  Backdrop,
-  Box,
-  Button,
-  CardMedia,
-  Fade,
-  IconButton,
-  LinearProgress,
-  LinearProgressProps,
-  Modal,
-  Snackbar,
-  Stack,
-  Typography
-} from '@mui/material'
-import { NextComponentType } from 'next'
-import Image from 'next/image'
+import { Alert, Backdrop, Box, CardMedia, Fade, Modal, Snackbar, Stack, Typography } from '@mui/material'
 import styles from 'styles/Dashboard.module.css'
-import { Add, PlusOne, Remove } from '@mui/icons-material'
-import { useEffect, useState } from 'react'
-import { Transaction } from '@solana/web3.js'
-import { CandyMachineAccount } from 'lib/candyMachine'
-import { makeStyles } from '@mui/styles'
-import { GatewayStatus, useGateway } from '@civic/solana-gateway-react'
-import Link from 'next/link'
 import { AlertState } from 'lib/utils'
 import { useWallet } from '@solana/wallet-adapter-react'
 import { candyMachineConfig } from 'config/candyMachine'
+import { LoadingButton } from '@mui/lab'
+import { useRouter } from 'next/router'
+import MultipleMint from './MultipleMint'
 
 const style = {
   position: 'absolute',
   top: '50%',
   left: '50%',
   transform: 'translate(-50%, -50%)',
-  width: 600,
+  width: 650,
   bgcolor: 'background.paper',
   borderRadius: 4,
   boxShadow: 24,
@@ -46,90 +25,30 @@ interface IMintModal {
   handleClose: () => void
   open: boolean
   totalMinted: number
-  itemsAvailable: number
-  onMint: () => Promise<void>
-  isSoldOut: boolean
-  isEnded: boolean
-  isActive: boolean
-  candyMachine: CandyMachineAccount | undefined
   isMinting: boolean
   itemsRemaining: number
-  onFinishVerified: () => void
   solscanInfo: string
   alertState: AlertState
   onAlertState: (data: AlertState) => void
-  mintCount: number
-  onChangeMintCount: (counter: string) => void
+  onMinting: () => void
+  onFinish: () => void
+  onError: () => void
 }
-
-interface LinearProgressMinted extends LinearProgressProps {
-  totalMinted: number
-  itemsAvailable: number
-}
-
-function LinearProgressWithLabel(props: LinearProgressMinted & { value: number }) {
-  return (
-    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-      <Box sx={{ width: '100%', mr: 1 }}>
-        <LinearProgress variant="determinate" {...props} />
-      </Box>
-      <Box sx={{ minWidth: 50 }}>
-        <Typography variant="body2" color="text.secondary">{`${props.totalMinted} / ${props.itemsAvailable}`}</Typography>
-      </Box>
-    </Box>
-  )
-}
-
-const useStyles = makeStyles(() => ({
-  root: {
-    '& .MuiLinearProgress-colorPrimary': {
-      backgroundColor: 'red'
-    },
-    '& .MuiLinearProgress-barColorPrimary': {
-      backgroundColor: 'green'
-    }
-  }
-}))
 
 const MintModal = ({
   handleClose,
   open,
-  itemsAvailable,
-  totalMinted,
-  onMint,
-  candyMachine,
-  isActive,
-  isEnded,
   isMinting,
-  isSoldOut,
   itemsRemaining,
-  onFinishVerified,
   solscanInfo,
   alertState,
   onAlertState,
-  mintCount,
-  onChangeMintCount
+  onError,
+  onFinish,
+  onMinting
 }: IMintModal) => {
-  const [clicked, setClicked] = useState(false)
-  const [isVerifying, setIsVerifying] = useState(false)
   const wallet = useWallet()
-
-  const classes = useStyles()
-  const { requestGatewayToken, gatewayStatus } = useGateway()
-
-  useEffect(() => {
-    setIsVerifying(false)
-    if (gatewayStatus === GatewayStatus.COLLECTING_USER_INFORMATION && clicked) {
-      // when user approves wallet verification txn
-      setIsVerifying(true)
-      onFinishVerified()
-    } else if (gatewayStatus === GatewayStatus.ACTIVE && clicked) {
-      console.log('Verified human, now minting...')
-      onFinishVerified()
-      onMint()
-      setClicked(false)
-    }
-  }, [gatewayStatus, clicked, setClicked, onMint, onFinishVerified])
+  const router = useRouter()
 
   return (
     <Modal
@@ -147,51 +66,14 @@ const MintModal = ({
           <p className={styles.buttonText} style={{ textAlign: 'center', fontSize: 30 }}>
             Mint Now
           </p>
-          <CardMedia src="/assets/images/dgp-merged.gif" component={'img'} sx={{ borderRadius: 4 }} height={400} width={100} alt="gif" />
+          <CardMedia src="/assets/images/collection.gif" component={'img'} sx={{ borderRadius: 4 }} height={400} width={100} alt="gif" />
           <Stack direction={'row'} spacing={2} mt={2} mb={2} alignItems={'center'}>
             {/* @ts-ignore */}
-            {!itemsRemaining === 0 && (
-              <>
-                <IconButton sx={{ bgcolor: 'primary.light' }} onClick={() => onChangeMintCount('min')} disabled={mintCount === 0}>
-                  <Remove />
-                </IconButton>
-                <p className={styles.buttonText} style={{ textAlign: 'center', fontSize: 22, alignSelf: 'center' }}>
-                  {mintCount}
-                </p>
-                <IconButton sx={{ bgcolor: 'primary.light' }} onClick={() => onChangeMintCount('plus')} disabled={mintCount === 100}>
-                  <Add />
-                </IconButton>
-                <Button
-                  disabled={clicked || candyMachine?.state.isSoldOut || isSoldOut || isMinting || isEnded || !isActive || isVerifying}
-                  sx={{ bgcolor: 'primary.light' }}
-                  onClick={async () => {
-                    if (isActive && candyMachine?.state.gatekeeper && gatewayStatus !== GatewayStatus.ACTIVE) {
-                      handleClose()
-                      console.log('Requesting gateway token')
-                      setClicked(true)
-                      await requestGatewayToken()
-                    } else {
-                      onFinishVerified()
-                      console.log('Minting...')
-                      await onMint()
-                    }
-                  }}>
-                  <Typography color="white" fontWeight={'bold'} variant="button" component={'div'}>
-                    Mint
-                  </Typography>
-                </Button>
-              </>
+            {itemsRemaining > 0 && (
+              <Stack direction={'row'} spacing={0} alignItems="center" justifyContent={'center'}>
+                <MultipleMint onError={onError} onFinish={onFinish} onMinting={onMinting} />
+              </Stack>
             )}
-            <Box sx={{ width: '100%' }}>
-              <LinearProgressWithLabel
-                className={classes.root}
-                variant="determinate"
-                value={100 - (itemsRemaining * 100) / itemsAvailable}
-                sx={{ bgcolor: 'paper', color: '#FFF', p: 1, borderRadius: 4 }}
-                totalMinted={totalMinted}
-                itemsAvailable={itemsAvailable}
-              />
-            </Box>
           </Stack>
           {itemsRemaining === 0 && (
             <>

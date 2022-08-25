@@ -14,7 +14,10 @@ import {
   CollectionReference,
   getDoc,
   getDocs,
-  QuerySnapshot
+  QuerySnapshot,
+  updateDoc,
+  UpdateData,
+  WithFieldValue
 } from 'firebase/firestore'
 import { generateId, generateRandomString } from 'utils/string'
 import { IConfig, ISubConfig } from './interfaces/IConfig'
@@ -26,11 +29,10 @@ import { IConfig, ISubConfig } from './interfaces/IConfig'
  */
 class FirebaseProviders {
   db: Firestore
-  globalConfig: string
-  solanaConfig: string
-  evmConfig: string
+  users: string
+  networks: string
   analytics: Analytics
-
+  generateCollectionId: string
   /**
    * Creates an instance of FirebaseProviders.
    * @memberof FirebaseProviders
@@ -38,9 +40,9 @@ class FirebaseProviders {
   constructor() {
     this.db = null
     this.analytics = null
-    this.globalConfig = 'global-config'
-    this.solanaConfig = 'solana-config'
-    this.evmConfig = 'evm-config'
+    this.users = 'users'
+    this.networks = 'user-config'
+    this.generateCollectionId = `${generateId(31)}-${Date.now()}`
 
     this.init()
   }
@@ -150,55 +152,65 @@ class FirebaseProviders {
   }
 
   /**
-   * seeding your firebase
    *
-   * @return {*}  {Promise<boolean>}
+   *
+   * @param {string} address
+   * @return {*}  {(Promise<ISubConfig | null>)}
    * @memberof FirebaseProviders
    */
-  async seedDatabase(): Promise<boolean> {
-    try {
-      const dummyAddress = `AKmVvD9QnVgScvTnoQQKythi18mCrxoh8VUobRtTX3kY`
-      const collectionId = `${generateId(31)}-${Date.now()}`
-      const configCollectionId = `solana-${generateRandomString(10)}`
-      const configDoc = this.getDocument<IConfig>(this.globalConfig, configCollectionId)
-      const configCollection = this.getCollection<IConfig>(this.globalConfig)
-      const subConfigDoc = this.getDocument<ISubConfig>(this.solanaConfig, dummyAddress)
-      const subConfigCollection = this.getCollection<ISubConfig>(this.solanaConfig)
+  async getUserConfigByWalletAddress(address: string): Promise<ISubConfig | null> {
+    const subConfigDoc = this.getDocument<ISubConfig>(this.networks, address)
+    const subDoc = await getDoc(subConfigDoc)
+    return subDoc.data()
+  }
 
-      console.log('@onDeleteConfigData ...')
-      const configSnap = await getDocs(configCollection)
-      configSnap.docs.forEach(async (data) => {
-        await deleteDoc(this.getDocument(this.globalConfig, data.id))
-      })
-      console.log('@onDeleteSubConfigData ...')
-      const subConfigSnap = await getDocs(subConfigCollection)
-      subConfigSnap.docs.forEach(async (data) => {
-        await deleteDoc(this.getDocument(this.solanaConfig, data.id))
-      })
-      console.log('@onAddConfigData ...')
-      await setDoc(configDoc, {
-        id: `config-${collectionId}`,
-        network: 'solana',
-        collectionId: `nvp-solana-${generateRandomString(7)}`,
-        subConfig: this.solanaConfig,
-        providedAccount: 'AKmVvD9QnVgScvTnoQQKythi18mCrxoh8VUobRtTX3kY'
-      } as IConfig)
-      console.log('@onAddConfigData ...')
-      await setDoc(subConfigDoc, {
-        candyMachineId: candyMachineConfig.candyMachineId,
-        candyStartDate: candyMachineConfig.startDate,
-        trasuryAddress: candyMachineConfig.trasuryAddress,
-        id: `sub-config-${collectionId}-AKmVvD9QnVgScvTnoQQKythi18mCrxoh8VUobRtTX3kY`,
-        rpcUrl: candyMachineConfig.rpcHost,
-        mode: candyMachineConfig.network,
-        walletAddress: `AKmVvD9QnVgScvTnoQQKythi18mCrxoh8VUobRtTX3kY`
-      } as ISubConfig)
-      console.log('done ...')
-      return true
-    } catch (err: unknown) {
-      console.log(err, '@errorSeedingData')
-      return false
-    }
+  /**
+   *
+   *
+   * @param {string} address
+   * @param {ISubConfig} data
+   * @return {*}  {(Promise<ISubConfig | null>)}
+   * @memberof FirebaseProviders
+   */
+  async updateSettingsSubConfig(address: string, data: ISubConfig): Promise<ISubConfig | null> {
+    const subConfigDoc = this.getDocument<ISubConfig>(this.networks, address)
+    await updateDoc(subConfigDoc, data)
+    const results = await getDoc(subConfigDoc)
+    return results.data()
+  }
+
+  /**
+   *
+   *
+   * @template T
+   * @param {string} model
+   * @param {string} address
+   * @param {WithFieldValue<T>} data
+   * @return {*}  {Promise<T>}
+   * @memberof FirebaseProviders
+   */
+  async upsert<T>(model: string, address: string, data: WithFieldValue<T>): Promise<T> {
+    const doc = this.getDocument<T>(model, address)
+    await setDoc(doc, data)
+    const returnedData = await this.getWhere<T>(doc)
+    return returnedData
+  }
+
+  /**
+   *
+   *
+   * @template T
+   * @param {string} model
+   * @param {string} address
+   * @param {UpdateData<T>} data
+   * @return {*}  {Promise<T>}
+   * @memberof FirebaseProviders
+   */
+  async update<T>(model: string, address: string, data: UpdateData<T>): Promise<T> {
+    const docWallet = this.getDocument<T>(model, address)
+    await updateDoc(docWallet, data)
+    const _data = await this.getWhere(docWallet)
+    return _data
   }
 
   /**
@@ -210,11 +222,130 @@ class FirebaseProviders {
    */
   async getConfigByWalletAddress(walletAddr: string): Promise<ISubConfig> {
     try {
-      const docWallet = this.getDocument<ISubConfig>(this.solanaConfig, walletAddr)
+      const docWallet = this.getDocument<ISubConfig>(this.networks, walletAddr)
       const data = await this.getWhere<ISubConfig>(docWallet)
       return data
     } catch (err) {
+      console.log(err, '@error')
       return null
+    }
+  }
+
+  /**
+   *
+   *
+   * @param {IConfig} userData
+   * @param {ISubConfig} subData
+   * @param {string} address
+   * @param {(e) => void} onError
+   * @return {*}  {(Promise<ISubConfig | {}>)}
+   * @memberof FirebaseProviders
+   */
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  async insertCandyMachineConfig(userData: IConfig, subData: ISubConfig, address: string, onError: (e) => void): Promise<ISubConfig | {}> {
+    try {
+      console.log('address', address)
+      const getUserDocument = this.getDocument<IConfig>(this.users, address)
+      const subConfigDoc = this.getDocument<ISubConfig>(this.networks, address)
+      // check if user exist
+      const userDoc = await getDoc(getUserDocument)
+      const subDoc = await getDoc(subConfigDoc)
+      if (userDoc.exists()) {
+        // if exist then create new subConfig
+        if (subDoc.exists()) {
+          console.log('subExist!')
+          await updateDoc(subConfigDoc, {
+            candyMachineId: subData.candyMachineId || null,
+            candyStartDate: subData.candyStartDate,
+            trasuryAddress: subData.trasuryAddress,
+            id: subData.id,
+            rpcUrl: subData.rpcUrl || candyMachineConfig.rpcHost,
+            mode: subData.mode,
+            walletAddress: address
+          } as ISubConfig)
+          const subConfigOfUserDoc = await getDoc(subConfigDoc)
+          return subConfigOfUserDoc.data()
+        } else {
+          await setDoc(subConfigDoc, {
+            candyMachineId: subData.candyMachineId || null,
+            candyStartDate: subData.candyStartDate,
+            trasuryAddress: subData.trasuryAddress,
+            id: subData.id,
+            rpcUrl: subData.rpcUrl || candyMachineConfig.rpcHost,
+            mode: subData.mode,
+            walletAddress: address
+          } as ISubConfig)
+          const subConfigOfUserDoc = await getDoc(subConfigDoc)
+          return subConfigOfUserDoc.data()
+        }
+      } else {
+        // if not exist then create userDoc and create subDoc
+        await setDoc(getUserDocument, userData)
+        await setDoc(subConfigDoc, {
+          candyMachineId: subData.candyMachineId || null,
+          candyStartDate: subData.candyStartDate,
+          trasuryAddress: subData.trasuryAddress,
+          id: subData.id,
+          rpcUrl: subData.rpcUrl || candyMachineConfig.rpcHost,
+          mode: subData.mode,
+          walletAddress: address
+        } as ISubConfig)
+        const subConfigOfUserDoc = await getDoc(subConfigDoc)
+        return subConfigOfUserDoc.data()
+      }
+    } catch (err) {
+      onError(err)
+      return {}
+    }
+  }
+
+  /**
+   * seeding your firebase
+   *
+   * @return {*}  {Promise<boolean>}
+   * @memberof FirebaseProviders
+   */
+  async seedDatabase(): Promise<boolean> {
+    try {
+      const dummyAddress = `AKmVvD9QnVgScvTnoQQKythi18mCrxoh8VUobRtTX3kY`
+      const collectionId = `${generateId(31)}-${Date.now()}`
+      const configDoc = this.getDocument<IConfig>(this.users, dummyAddress)
+      const configCollection = this.getCollection<IConfig>(this.users)
+      const subConfigDoc = this.getDocument<ISubConfig>(this.networks, dummyAddress)
+      const subConfigCollection = this.getCollection<ISubConfig>(this.networks)
+
+      console.log('@onDeleteConfigData ...')
+      const configSnap = await getDocs(configCollection)
+      configSnap.docs.forEach(async (data) => {
+        await deleteDoc(this.getDocument(this.users, data.id))
+      })
+      console.log('@onDeleteSubConfigData ...')
+      const subConfigSnap = await getDocs(subConfigCollection)
+      subConfigSnap.docs.forEach(async (data) => {
+        await deleteDoc(this.getDocument(this.networks, data.id))
+      })
+      console.log('@onAddConfigData ...')
+      await setDoc(configDoc, {
+        id: `config-${collectionId}`,
+        network: 'solana',
+        providedAccount: 'AKmVvD9QnVgScvTnoQQKythi18mCrxoh8VUobRtTX3kY',
+        networkId: `solana-${collectionId}-AKmVvD9QnVgScvTnoQQKythi18mCrxoh8VUobRtTX3kY`
+      } as IConfig)
+      console.log('@onAddConfigData ...')
+      await setDoc(subConfigDoc, {
+        candyMachineId: candyMachineConfig.candyMachineId,
+        candyStartDate: candyMachineConfig.startDate,
+        trasuryAddress: candyMachineConfig.trasuryAddress,
+        id: `solana-${collectionId}-AKmVvD9QnVgScvTnoQQKythi18mCrxoh8VUobRtTX3kY`,
+        rpcUrl: candyMachineConfig.rpcHost,
+        mode: candyMachineConfig.network,
+        walletAddress: `AKmVvD9QnVgScvTnoQQKythi18mCrxoh8VUobRtTX3kY`
+      } as ISubConfig)
+      console.log('done ...')
+      return true
+    } catch (err: unknown) {
+      console.log(err, '@errorSeedingData')
+      return false
     }
   }
 }

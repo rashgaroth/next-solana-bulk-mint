@@ -15,7 +15,7 @@ export default function themeTypography(theme: IPalette) {
     h5: {
       fontSize: '0.875rem',
       color: theme.text.main,
-      fontWeight: 500
+      fontWeight: 'bold'
     },
     h4: {
       fontSize: '1rem',
@@ -33,7 +33,7 @@ export default function themeTypography(theme: IPalette) {
       fontWeight: 700
     },
     h1: {
-      fontSize: '2.125rem',
+      fontSize: '2rem',
       color: theme.text.main,
       fontWeight: 'bold'
     },

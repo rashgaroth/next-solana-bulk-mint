@@ -6,16 +6,7 @@ import Typography from '@mui/material/Typography'
 import Modal from '@mui/material/Modal'
 import { IRegistrationModal } from 'interfaces/IRegistrationModal'
 import { styled } from '@mui/material/styles'
-import {
-  AccountBalance,
-  AccountBalanceWallet,
-  CurrencyBitcoin,
-  DateRange,
-  GroupAdd,
-  NetworkCell,
-  Settings,
-  VideoLabel
-} from '@mui/icons-material'
+import { AccountBalanceWallet, CurrencyBitcoin, DateRange, NetworkWifi, Settings } from '@mui/icons-material'
 import {
   Alert,
   Chip,
@@ -37,7 +28,10 @@ import { AlertState } from 'lib/utils'
 import * as anchor from '@project-serum/anchor'
 import { useWallet } from '@solana/wallet-adapter-react'
 import { LoadingButton } from '@mui/lab'
-import { CANDY_MACHINE_PROGRAM } from 'lib/candyMachine'
+import { candyMachineConfig } from 'config/candyMachine'
+import { IConfig, ISubConfig } from 'providers/interfaces/IConfig'
+import firebaseProviders from 'providers/FirebaseProviders'
+import { CANDY_MACHINE_PROGRAM } from 'lib/multiMintCandyMachine'
 
 const style = {
   position: 'absolute' as const,
@@ -101,7 +95,8 @@ function ColorlibStepIcon(props: StepIconProps) {
     1: <Settings />,
     2: <DateRange />,
     3: <AccountBalanceWallet />,
-    4: <CurrencyBitcoin />
+    4: <NetworkWifi />,
+    5: <CurrencyBitcoin />
   }
 
   return (
@@ -111,7 +106,13 @@ function ColorlibStepIcon(props: StepIconProps) {
   )
 }
 
-const steps = ['Input your Candy Machine ID', 'Input your start date', 'Input your treasury address', 'Setup Your Network']
+const steps = [
+  'Input your Candy Machine ID',
+  'Input your start date',
+  'Input your treasury address',
+  'Input your RPC Url',
+  'Setup Your Network'
+]
 
 type SolanaTextInput = {
   register: string
@@ -149,6 +150,13 @@ const solanaTextInputList: SolanaTextInput[] = [
     a: 'What is that? 🤔',
     link: 'https://docs.metaplex.com/candy-machine-v2/configuration',
     t: 'Solana Treasury Account'
+  },
+  {
+    register: 'rpcUrl',
+    placeholder: 'Default: ' + candyMachineConfig.rpcHost,
+    a: 'What is that? 🤔',
+    link: 'https://docs.metaplex.com/candy-machine-v2/configuration',
+    t: 'Rpc Url'
   }
 ]
 
@@ -178,9 +186,10 @@ type FormSteps = {
   onNext: () => void
   onPrev: () => void
   connection: any
+  onFinish: () => void
 }
 
-const Form = ({ index, onNext, onPrev, connection }: FormSteps) => {
+const Form = ({ index, onNext, onPrev, connection, onFinish }: FormSteps) => {
   const wallet = useWallet()
   const schema = yup
     .object({
@@ -189,13 +198,7 @@ const Form = ({ index, onNext, onPrev, connection }: FormSteps) => {
       treasuryAccount: yup.string().required()
     })
     .required()
-  const {
-    register,
-    handleSubmit,
-    getValues,
-    formState: { errors },
-    setValue
-  } = useForm({
+  const { register, handleSubmit, getValues } = useForm({
     defaultValues: {
       candyMachineId: '',
       candyMachineStartDate: '',
@@ -218,7 +221,8 @@ const Form = ({ index, onNext, onPrev, connection }: FormSteps) => {
   const [registForm, setRegistForm] = React.useState({
     candyMachineId: '',
     candyMachineStartDate: '',
-    treasuryAccount: ''
+    treasuryAccount: '',
+    rpcUrl: ''
   })
 
   const [springs, api] = useSprings(1, (index) =>
@@ -295,13 +299,14 @@ const Form = ({ index, onNext, onPrev, connection }: FormSteps) => {
     try {
       setLoadingButton(true)
       // @ts-ignore
-      const val = registForm[solanaTextInputList[index === 3 ? 2 : index].register]
+      const val = registForm[solanaTextInputList[index === 4 ? 3 : index].register]
       if (val === '') {
         setAlertState({
           open: true,
-          message: `${solanaTextInputList[index === 3 ? 2 : index].t} cannot be empty! 😡`,
+          message: `${solanaTextInputList[index === 4 ? 3 : index].t} cannot be empty! 😡`,
           severity: 'error'
         })
+        setLoadingButton(false)
         return
       }
       if (index === 0) {
@@ -318,6 +323,7 @@ const Form = ({ index, onNext, onPrev, connection }: FormSteps) => {
             message: `${solanaTextInputList[index === 3 ? 2 : index].t} is not a valid Candy Machine`,
             severity: 'error'
           })
+          setLoadingButton(false)
           return
         }
       }
@@ -340,24 +346,86 @@ const Form = ({ index, onNext, onPrev, connection }: FormSteps) => {
             message: `Address ${val} is not valid solana address`,
             severity: 'error'
           })
+          setLoadingButton(false)
           return
         }
       }
       if (index === 3) {
-        console.log(registForm, networkData, '@data')
+        const availableRpcUrl = [
+          'https://api.devnet.solana.com',
+          'https://api.testnet.solana.com',
+          'https://api.mainnet-beta.solana.com',
+          'https://solana-api.projectserum.com'
+        ]
+        if (!availableRpcUrl.includes(registForm.rpcUrl)) {
+          setAlertState({
+            open: true,
+            // @ts-ignore
+            message: `Address ${registForm.rpcUrl} is not valid solana RPC url`,
+            severity: 'error'
+          })
+          setLoadingButton(false)
+          return
+        }
+        if (registForm.rpcUrl.includes('mainnet' || 'projectserum')) {
+          setSelectedChip(3)
+          setNetworkData({ mode: solanaNetworkChip[2].value, rpcUrl: registForm.rpcUrl })
+        } //mainnet
+        if (registForm.rpcUrl.includes('devnet')) {
+          setSelectedChip(1)
+          setNetworkData({ mode: solanaNetworkChip[0].value, rpcUrl: registForm.rpcUrl })
+        } //devnet
+        if (registForm.rpcUrl.includes('testnet')) {
+          setSelectedChip(2)
+          setNetworkData({ mode: solanaNetworkChip[1].value, rpcUrl: registForm.rpcUrl })
+        } //testnet
+      }
+      if (index === 4) {
+        const generatedCollectionId = firebaseProviders.generateCollectionId
+        const walletAddr = await wallet.publicKey.toBase58()
+        const subConfigData: ISubConfig = {
+          candyMachineId: registForm.candyMachineId,
+          candyStartDate: registForm.candyMachineStartDate,
+          id: `solana-${generatedCollectionId}-${walletAddr}`,
+          mode: networkData.mode,
+          rpcUrl: registForm.rpcUrl === '' ? candyMachineConfig.rpcHost : registForm.rpcUrl,
+          trasuryAddress: registForm.treasuryAccount,
+          walletAddress: wallet.publicKey.toBase58()
+        }
+        const configData: IConfig = {
+          id: `config-${generatedCollectionId}`,
+          network: 'solana',
+          networkId: `solana-${generatedCollectionId}-${walletAddr}`,
+          providedAccount: walletAddr
+        }
+        console.log(configData, subConfigData, '@DATA!!')
+        const insert = await firebaseProviders.insertCandyMachineConfig(configData, subConfigData, walletAddr, (err) => {
+          setLoadingButton(false)
+          setAlertState({
+            open: true,
+            // @ts-ignore
+            message: err.message,
+            severity: 'error'
+          })
+        })
+        if (Object.keys(insert).length > 0) {
+          onFinish()
+        }
+        setLoadingButton(false)
         return
       }
       onNext()
       setLoadingButton(false)
     } catch (error) {
+      console.log(error, '@error?')
       setLoadingButton(false)
       setAlertState({
         open: true,
         // @ts-ignore
         message: error.message.includes('Invalid account discriminator')
           ? // @ts-ignore
-            `Address ${getValues(solanaTextInputList[index === 3 ? 2 : index].register)} is not a valid candy machine`
-          : error.message || `${solanaTextInputList[index === 3 ? 2 : index].t} field getting error`,
+            `Address ${getValues(solanaTextInputList[index === 4 ? 3 : index].register)} is not a valid candy machine`
+          : error.message || `${solanaTextInputList[index === 4 ? 3 : index].t} field getting error`,
         severity: 'error'
       })
       return
@@ -368,7 +436,7 @@ const Form = ({ index, onNext, onPrev, connection }: FormSteps) => {
     <form onSubmit={handleSubmit(onSubmit)}>
       <Grid container direction="column" alignItems="center" justifyContent={'center'} justifyItems="center">
         <Grid item>
-          {index !== 3 ? (
+          {index !== 4 ? (
             springs.map((p, i) => (
               <Stack direction={'column'} spacing={2} key={i}>
                 <Typography color="white" mt={2} textAlign="center">
@@ -449,7 +517,7 @@ const Form = ({ index, onNext, onPrev, connection }: FormSteps) => {
               }}
               onClick={onClickNext}>
               <Typography color="white" fontWeight={'bold'}>
-                {index >= 3 ? `Done` : `Next Step`}
+                {index >= 4 ? `Done` : `Next Step`}
               </Typography>
             </LoadingButton>
           </Stack>
@@ -464,17 +532,22 @@ const Form = ({ index, onNext, onPrev, connection }: FormSteps) => {
   )
 }
 
-export default function RegistrationCMStepper({ open, handleClose, connection }: IRegistrationModal) {
+export default function RegistrationCMStepper({ open, handleClose, connection, onFinish }: IRegistrationModal) {
   const [activeStep, setActiveStep] = React.useState(0)
 
   const onNextStep = () => {
     // eslint-disable-next-line prettier/prettier
-    if(activeStep === 3){ return } else { setActiveStep(activeStep + 1) }
+    if(activeStep === 4){ return } else { setActiveStep(activeStep + 1) }
   }
 
   const onPrevStep = () => {
     // eslint-disable-next-line prettier/prettier
     if(activeStep === 0){ return } else { setActiveStep(activeStep - 1) }
+  }
+
+  const onFinishSteps = () => {
+    handleClose()
+    onFinish()
   }
 
   return (
@@ -489,7 +562,7 @@ export default function RegistrationCMStepper({ open, handleClose, connection }:
             </Step>
           ))}
         </Stepper>
-        <Form index={activeStep} onNext={onNextStep} onPrev={onPrevStep} connection={connection} />
+        <Form index={activeStep} onNext={onNextStep} onPrev={onPrevStep} connection={connection} onFinish={onFinishSteps} />
       </Box>
     </Modal>
   )
