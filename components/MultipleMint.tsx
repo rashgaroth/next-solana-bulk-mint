@@ -138,177 +138,178 @@ const Home = (props: HomeProps) => {
     } as anchor.Wallet
   }, [wallet])
 
-  const refreshCandyMachineState = useCallback(
-    async (commitment: Commitment = 'confirmed') => {
-      if (!anchorWallet) {
-        return
-      }
+  const refreshCandyMachineState = useCallback(async (commitment: Commitment = 'confirmed') => {
+    if (!anchorWallet) {
+      return
+    }
 
-      const connection = new Connection(props.rpcHost, commitment)
+    console.log(props)
 
-      if (props.candyMachineId) {
-        try {
-          const cndy = await getCandyMachineState(anchorWallet, props.candyMachineId, connection)
-          let active = cndy?.state.goLiveDate?.toNumber() < new Date().getTime() / 1000
-          let presale = false
+    const connection = new Connection(props.rpcHost, commitment)
 
-          setItemsAvailable(cndy.state.itemsAvailable)
-          setItemsRemaining(cndy.state.itemsRemaining)
-          setItemsRedeemed(cndy.state.itemsRedeemed)
+    if (props.candyMachineId) {
+      try {
+        const cndy = await getCandyMachineState(anchorWallet, props.candyMachineId, connection)
+        let active = cndy?.state.goLiveDate?.toNumber() < new Date().getTime() / 1000
+        let presale = false
 
-          // duplication of state to make sure we have the right values!
-          let isWLUser = false
-          let userPrice = cndy.state.price
+        console.log(cndy)
 
-          // whitelist mint with token?
-          if (cndy?.state.whitelistMintSettings) {
-            // is it a presale mint?
-            if (
-              cndy.state.whitelistMintSettings.presale &&
-              (!cndy.state.goLiveDate || cndy.state.goLiveDate.toNumber() > new Date().getTime() / 1000)
-            ) {
-              presale = true
-            }
-            // is there a discount?
-            if (cndy.state.whitelistMintSettings.discountPrice) {
-              userPrice = cndy.state.whitelistMintSettings.discountPrice
-            } else {
-              // when presale=false and discountPrice=null, mint is restricted
-              // to whitelist users only
-              if (!cndy.state.whitelistMintSettings.presale) {
-                cndy.state.isWhitelistOnly = true
-              }
-            }
-            // retrieves the whitelist token
-            const mint = new anchor.web3.PublicKey(cndy.state.whitelistMintSettings.mint)
-            const token = (await getAtaForMint(mint, anchorWallet.publicKey))[0]
+        setItemsAvailable(cndy.state.itemsAvailable)
+        setItemsRemaining(cndy.state.itemsRemaining)
+        setItemsRedeemed(cndy.state.itemsRedeemed)
 
-            try {
-              const balance = await connection.getTokenAccountBalance(token)
-              isWLUser = parseInt(balance.value.amount) > 0
-              // only whitelist the user if the balance > 0
-              setIsWhitelistUser(isWLUser)
+        // duplication of state to make sure we have the right values!
+        let isWLUser = false
+        let userPrice = cndy.state.price
 
-              if (cndy.state.isWhitelistOnly) {
-                active = isWLUser && (presale || active)
-              }
-            } catch (e) {
-              setIsWhitelistUser(false)
-              // no whitelist user, no mint
-              if (cndy.state.isWhitelistOnly) {
-                active = false
-              }
-              console.log('There was a problem fetching whitelist token balance')
-              console.log(e)
+        // whitelist mint with token?
+        if (cndy?.state.whitelistMintSettings) {
+          // is it a presale mint?
+          if (
+            cndy.state.whitelistMintSettings.presale &&
+            (!cndy.state.goLiveDate || cndy.state.goLiveDate.toNumber() > new Date().getTime() / 1000)
+          ) {
+            presale = true
+          }
+          // is there a discount?
+          if (cndy.state.whitelistMintSettings.discountPrice) {
+            userPrice = cndy.state.whitelistMintSettings.discountPrice
+          } else {
+            // when presale=false and discountPrice=null, mint is restricted
+            // to whitelist users only
+            if (!cndy.state.whitelistMintSettings.presale) {
+              cndy.state.isWhitelistOnly = true
             }
           }
+          // retrieves the whitelist token
+          const mint = new anchor.web3.PublicKey(cndy.state.whitelistMintSettings.mint)
+          const token = (await getAtaForMint(mint, anchorWallet.publicKey))[0]
 
-          userPrice = isWLUser ? userPrice : cndy.state.price
+          try {
+            const balance = await connection.getTokenAccountBalance(token)
+            isWLUser = parseInt(balance.value.amount) > 0
+            // only whitelist the user if the balance > 0
+            setIsWhitelistUser(isWLUser)
 
-          if (cndy?.state.tokenMint) {
-            // retrieves the SPL token
-            const mint = new anchor.web3.PublicKey(cndy.state.tokenMint)
-            const token = (await getAtaForMint(mint, anchorWallet.publicKey))[0]
-            try {
-              const balance = await connection.getTokenAccountBalance(token)
-
-              const valid = new anchor.BN(balance.value.amount).gte(userPrice)
-
-              // only allow user to mint if token balance >  the user if the balance > 0
-              setIsValidBalance(valid)
-              active = active && valid
-            } catch (e) {
-              setIsValidBalance(false)
-              active = false
-              // no whitelist user, no mint
-              console.log('There was a problem fetching SPL token balance')
-              console.log(e)
+            if (cndy.state.isWhitelistOnly) {
+              active = isWLUser && (presale || active)
             }
-          } else {
-            const balance = new anchor.BN(await connection.getBalance(anchorWallet.publicKey))
-            const valid = balance.gte(userPrice)
+          } catch (e) {
+            setIsWhitelistUser(false)
+            // no whitelist user, no mint
+            if (cndy.state.isWhitelistOnly) {
+              active = false
+            }
+            console.log('There was a problem fetching whitelist token balance')
+            console.log(e)
+          }
+        }
+
+        userPrice = isWLUser ? userPrice : cndy.state.price
+
+        if (cndy?.state.tokenMint) {
+          // retrieves the SPL token
+          const mint = new anchor.web3.PublicKey(cndy.state.tokenMint)
+          const token = (await getAtaForMint(mint, anchorWallet.publicKey))[0]
+          try {
+            const balance = await connection.getTokenAccountBalance(token)
+
+            const valid = new anchor.BN(balance.value.amount).gte(userPrice)
+
+            // only allow user to mint if token balance >  the user if the balance > 0
             setIsValidBalance(valid)
             active = active && valid
+          } catch (e) {
+            setIsValidBalance(false)
+            active = false
+            // no whitelist user, no mint
+            console.log('There was a problem fetching SPL token balance')
+            console.log(e)
           }
+        } else {
+          const balance = new anchor.BN(await connection.getBalance(anchorWallet.publicKey))
+          const valid = balance.gte(userPrice)
+          setIsValidBalance(valid)
+          active = active && valid
+        }
 
-          // datetime to stop the mint?
-          if (cndy?.state.endSettings?.endSettingType.date) {
-            if (cndy.state.endSettings.number.toNumber() < new Date().getTime() / 1000) {
-              active = false
-            }
-          }
-          // amount to stop the mint?
-          if (cndy?.state.endSettings?.endSettingType.amount) {
-            const limit = Math.min(cndy.state.endSettings.number.toNumber(), cndy.state.itemsAvailable)
-            if (cndy.state.itemsRedeemed < limit) {
-              setItemsRemaining(limit - cndy.state.itemsRedeemed)
-            } else {
-              setItemsRemaining(0)
-              cndy.state.isSoldOut = true
-            }
-          } else {
-            setItemsRemaining(cndy.state.itemsRemaining)
-          }
-
-          if (cndy.state.isSoldOut) {
+        // datetime to stop the mint?
+        if (cndy?.state.endSettings?.endSettingType.date) {
+          if (cndy.state.endSettings.number.toNumber() < new Date().getTime() / 1000) {
             active = false
           }
-
-          const [collectionPDA] = await getCollectionPDA(props.candyMachineId)
-          const collectionPDAAccount = await connection.getAccountInfo(collectionPDA)
-
-          setIsActive((cndy.state.isActive = active))
-          setIsPresale((cndy.state.isPresale = presale))
-          setCandyMachine(cndy)
-
-          const txnEstimate =
-            892 +
-            (!!collectionPDAAccount && cndy.state.retainAuthority ? 182 : 0) +
-            (cndy.state.tokenMint ? 66 : 0) +
-            (cndy.state.whitelistMintSettings ? 34 : 0) +
-            (cndy.state.whitelistMintSettings?.mode?.burnEveryTime ? 34 : 0) +
-            (cndy.state.gatekeeper ? 33 : 0) +
-            (cndy.state.gatekeeper?.expireOnUse ? 66 : 0)
-
-          setNeedTxnSplit(txnEstimate > 1230)
-        } catch (e) {
-          if (e instanceof Error) {
-            if (e.message === `Account does not exist ${props.candyMachineId}`) {
-              setAlertState({
-                open: true,
-                message: `Couldn't fetch candy machine state from candy machine with address: ${props.candyMachineId}, using rpc: ${props.rpcHost}! You probably typed the REACT_APP_CANDY_MACHINE_ID value in wrong in your .env file, or you are using the wrong RPC!`,
-                severity: 'error',
-                hideDuration: null
-              })
-            } else if (e.message.startsWith('failed to get info about account')) {
-              setAlertState({
-                open: true,
-                message: `Couldn't fetch candy machine state with rpc: ${props.rpcHost}! This probably means you have an issue with the REACT_APP_SOLANA_RPC_HOST value in your .env file, or you are not using a custom RPC!`,
-                severity: 'error',
-                hideDuration: null
-              })
-            }
+        }
+        // amount to stop the mint?
+        if (cndy?.state.endSettings?.endSettingType.amount) {
+          const limit = Math.min(cndy.state.endSettings.number.toNumber(), cndy.state.itemsAvailable)
+          if (cndy.state.itemsRedeemed < limit) {
+            setItemsRemaining(limit - cndy.state.itemsRedeemed)
           } else {
+            setItemsRemaining(0)
+            cndy.state.isSoldOut = true
+          }
+        } else {
+          setItemsRemaining(cndy.state.itemsRemaining)
+        }
+
+        if (cndy.state.isSoldOut) {
+          active = false
+        }
+
+        const [collectionPDA] = await getCollectionPDA(props.candyMachineId)
+        const collectionPDAAccount = await connection.getAccountInfo(collectionPDA)
+
+        setIsActive((cndy.state.isActive = active))
+        setIsPresale((cndy.state.isPresale = presale))
+        setCandyMachine(cndy)
+
+        const txnEstimate =
+          892 +
+          (!!collectionPDAAccount && cndy.state.retainAuthority ? 182 : 0) +
+          (cndy.state.tokenMint ? 66 : 0) +
+          (cndy.state.whitelistMintSettings ? 34 : 0) +
+          (cndy.state.whitelistMintSettings?.mode?.burnEveryTime ? 34 : 0) +
+          (cndy.state.gatekeeper ? 33 : 0) +
+          (cndy.state.gatekeeper?.expireOnUse ? 66 : 0)
+
+        setNeedTxnSplit(txnEstimate > 1230)
+      } catch (e) {
+        if (e instanceof Error) {
+          if (e.message === `Account does not exist ${props.candyMachineId}`) {
             setAlertState({
               open: true,
-              message: `${e}`,
+              message: `Couldn't fetch candy machine state from candy machine with address: ${props.candyMachineId}, using rpc: ${props.rpcHost}! You probably typed the REACT_APP_CANDY_MACHINE_ID value in wrong in your .env file, or you are using the wrong RPC!`,
+              severity: 'error',
+              hideDuration: null
+            })
+          } else if (e.message.startsWith('failed to get info about account')) {
+            setAlertState({
+              open: true,
+              message: `Couldn't fetch candy machine state with rpc: ${props.rpcHost}! This probably means you have an issue with the REACT_APP_SOLANA_RPC_HOST value in your .env file, or you are not using a custom RPC!`,
               severity: 'error',
               hideDuration: null
             })
           }
-          console.log(e)
+        } else {
+          setAlertState({
+            open: true,
+            message: `${e}`,
+            severity: 'error',
+            hideDuration: null
+          })
         }
-      } else {
-        setAlertState({
-          open: true,
-          message: `Your REACT_APP_CANDY_MACHINE_ID value in the .env file doesn't look right! Make sure you enter it in as plain base-58 address!`,
-          severity: 'error',
-          hideDuration: null
-        })
+        console.log(e)
       }
-    },
-    [anchorWallet, props.candyMachineId, props.rpcHost]
-  )
+    } else {
+      setAlertState({
+        open: true,
+        message: `Your REACT_APP_CANDY_MACHINE_ID value in the .env file doesn't look right! Make sure you enter it in as plain base-58 address!`,
+        severity: 'error',
+        hideDuration: null
+      })
+    }
+  }, [])
 
   const onMint = async (beforeTransactions: Transaction[] = [], afterTransactions: Transaction[] = []) => {
     const { onError, onFinish, onMinting } = props
@@ -495,7 +496,7 @@ const Home = (props: HomeProps) => {
 
   useEffect(() => {
     refreshCandyMachineState()
-  }, [anchorWallet, props.candyMachineId, props.connection, refreshCandyMachineState])
+  }, [])
 
   useEffect(() => {
     ;(function loop() {
@@ -518,8 +519,8 @@ const Home = (props: HomeProps) => {
                 logo="/assets/images/logo.svg"
                 wallet={wallet}
                 gatekeeperNetwork={candyMachine?.state?.gatekeeper?.gatekeeperNetwork}
-                cluster="devnet"
-                clusterUrl={props.network === WalletAdapterNetwork.Devnet ? 'https://api.devnet.solana.com' : rpcUrl}
+                cluster="mainnet-beta"
+                clusterUrl={props.network === WalletAdapterNetwork.Mainnet ? 'https://rpc.ankr.com/solana' : rpcUrl}
                 handleTransaction={async (transaction: Transaction) => {
                   console.log('onHandleTransaction!!', transaction)
                   setIsUserMinting(true)
@@ -657,47 +658,46 @@ const MultipleMint = ({ onFinish, onMinting, onError }: HomeEvents) => {
   const [props, setProps] = useState<HomeState>({
     txTimeout: 30000,
     candyMachineId: null,
-    connection: new anchor.web3.Connection(candyMachineConfig.rpcHost ? candyMachineConfig.rpcHost : anchor.web3.clusterApiUrl('devnet')),
+    connection: new anchor.web3.Connection(
+      candyMachineConfig.rpcHost ? candyMachineConfig.rpcHost : anchor.web3.clusterApiUrl('mainnet-beta')
+    ),
     network: candyMachineConfig.network as WalletAdapterNetwork,
     rpcHost: candyMachineConfig.rpcHost
   })
   const initialPage = async () => {
     setBackdropLoader(true)
-    setProps({
-      txTimeout: 60000,
-      candyMachineId: null,
-      connection: new anchor.web3.Connection(candyMachineConfig.rpcHost ? candyMachineConfig.rpcHost : anchor.web3.clusterApiUrl('devnet')),
-      network: candyMachineConfig.network as WalletAdapterNetwork,
-      rpcHost: candyMachineConfig.rpcHost
-    })
-    const userConf = await firebaseProviders.getConfigByWalletAddress(wallet.publicKey.toBase58())
+    // setProps({
+    //   txTimeout: 60000,
+    //   candyMachineId: null,
+    //   connection: new anchor.web3.Connection(
+    //     candyMachineConfig.rpcHost ? candyMachineConfig.rpcHost : anchor.web3.clusterApiUrl('mainnet-beta')
+    //   ),
+    //   network: candyMachineConfig.network as WalletAdapterNetwork,
+    //   rpcHost: candyMachineConfig.rpcHost
+    // })
+    // const userConf = await firebaseProviders.getConfigByWalletAddress(wallet.publicKey.toBase58())
     // The network can be set to 'devnet', 'testnet', or 'mainnet-beta'.
-    if (userConf !== null) {
-      const network = userConf.mode as WalletAdapterNetwork
-      const rpcHost = userConf.rpcUrl
-
-      const txTimeout = 30000 // milliseconds (confirm this works for your project)
-      const connection = new anchor.web3.Connection(rpcHost ? rpcHost : anchor.web3.clusterApiUrl(userConf.mode as Cluster))
-      const candyMachineId = getCandyMachineId(userConf.candyMachineId)
-      setBackdropLoader(false)
-      setProps({
-        txTimeout,
-        candyMachineId,
-        connection,
-        network,
-        rpcHost
-      })
-    }
+    const txTimeout = 30000 // milliseconds (confirm this works for your project)
+    const connection = new anchor.web3.Connection(anchor.web3.clusterApiUrl('mainnet-beta'))
+    const candyMachineId = getCandyMachineId(candyMachineConfig.candyMachineId)
+    setProps((curr) => ({
+      ...curr,
+      txTimeout,
+      candyMachineId,
+      connection,
+      network: 'mainnet-beta' as WalletAdapterNetwork,
+      rpcHost: candyMachineConfig.rpcHost
+    }))
     setBackdropLoader(false)
   }
 
   useEffect(() => {
-    if (props.candyMachineId === null && wallet.connected) {
+    if (wallet.connected) {
       initialPage()
     }
   }, [props.candyMachineId, wallet.connected])
 
-  return backdropLoader ? (
+  return backdropLoader || props.candyMachineId === null ? (
     <LoadingBackdrop open={backdropLoader} handleClose={() => setBackdropLoader(false)} />
   ) : (
     <Home

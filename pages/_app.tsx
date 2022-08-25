@@ -36,8 +36,8 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }: AppProps) {
 
   let network: WalletAdapterNetwork
   if (typeof window !== 'undefined') {
-    window.localStorage.setItem('network', 'devnet')
-    network = localStorage.getItem('network') as WalletAdapterNetwork
+    window.localStorage.setItem('network', 'mainnet-beta')
+    network = WalletAdapterNetwork.Mainnet
   }
   // The network can be set to 'devnet', 'testnet', or 'mainnet-beta'.
   const endpoint = useMemo(() => clusterApiUrl(network || 'mainnet-beta'), [])

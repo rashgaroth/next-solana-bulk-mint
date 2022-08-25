@@ -190,7 +190,7 @@ const MultipleHome = () => {
   const largeScreen = useMediaQuery((theme: Theme) => theme.breakpoints.up('md'))
   const wallet = useWallet()
 
-  const connection = new Connection(clusterApiUrl('devnet'))
+  const connection = new Connection(clusterApiUrl('mainnet-beta'))
   const metaplex = new Metaplex(connection)
 
   let socketTemp = ''

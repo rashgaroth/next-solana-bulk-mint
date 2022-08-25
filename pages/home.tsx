@@ -254,7 +254,9 @@ const Home: NextPage = () => {
   const [props, setProps] = useState<IHomeProps>({
     txTimeout: 30000,
     candyMachineId: null,
-    connection: new anchor.web3.Connection(candyMachineConfig.rpcHost ? candyMachineConfig.rpcHost : anchor.web3.clusterApiUrl('devnet')),
+    connection: new anchor.web3.Connection(
+      candyMachineConfig.rpcHost ? candyMachineConfig.rpcHost : anchor.web3.clusterApiUrl('mainnet-beta')
+    ),
     network: candyMachineConfig.network as WalletAdapterNetwork,
     rpcHost: candyMachineConfig.rpcHost
   })
@@ -265,31 +267,45 @@ const Home: NextPage = () => {
 
   const initialPage = async () => {
     setBackdropLoader(true)
-    setProps({
-      txTimeout: 60000,
-      candyMachineId: null,
-      connection: new anchor.web3.Connection(candyMachineConfig.rpcHost ? candyMachineConfig.rpcHost : anchor.web3.clusterApiUrl('devnet')),
-      network: candyMachineConfig.network as WalletAdapterNetwork,
-      rpcHost: candyMachineConfig.rpcHost
-    })
-    const userConf = await firebaseProviders.getConfigByWalletAddress(wallet.publicKey.toBase58())
-    // The network can be set to 'devnet', 'testnet', or 'mainnet-beta'.
-    if (userConf !== null) {
-      const network = userConf.mode as WalletAdapterNetwork
-      const rpcHost = userConf.rpcUrl
+    // setProps({
+    //   txTimeout: 60000,
+    //   candyMachineId: null,
+    //   connection: new anchor.web3.Connection(
+    //     candyMachineConfig.rpcHost ? candyMachineConfig.rpcHost : anchor.web3.clusterApiUrl('mainnet-beta')
+    //   ),
+    //   network: candyMachineConfig.network as WalletAdapterNetwork,
+    //   rpcHost: candyMachineConfig.rpcHost
+    // })
+    // const userConf = await firebaseProviders.getConfigByWalletAddress(wallet.publicKey.toBase58())
+    // The network can be set to 'mainnet-beta', 'testnet', or 'mainnet-beta'.
+    // if (userConf !== null) {
+    //   const network = userConf.mode as WalletAdapterNetwork
+    //   const rpcHost = userConf.rpcUrl
 
-      const txTimeout = 30000 // milliseconds (confirm this works for your project)
-      const connection = new anchor.web3.Connection(rpcHost ? rpcHost : anchor.web3.clusterApiUrl(userConf.mode as Cluster))
-      const candyMachineId = getCandyMachineId(userConf.candyMachineId)
-      setBackdropLoader(false)
-      setProps({
-        txTimeout,
-        candyMachineId,
-        connection,
-        network,
-        rpcHost
-      })
-    }
+    //   const txTimeout = 30000 // milliseconds (confirm this works for your project)
+    //   const connection = new anchor.web3.Connection(rpcHost ? rpcHost : anchor.web3.clusterApiUrl(userConf.mode as Cluster))
+    //   const candyMachineId = getCandyMachineId(userConf.candyMachineId)
+    //   setBackdropLoader(false)
+    //   setProps({
+    //     txTimeout,
+    //     candyMachineId,
+    //     connection,
+    //     network,
+    //     rpcHost
+    //   })
+    // } else {
+    const txTimeout = 30000 // milliseconds (confirm this works for your project)
+    const connection = new anchor.web3.Connection(anchor.web3.clusterApiUrl('mainnet-beta'))
+    const candyMachineId = getCandyMachineId(candyMachineConfig.candyMachineId)
+    setProps((curr) => ({
+      ...curr,
+      txTimeout,
+      candyMachineId,
+      connection,
+      network: 'mainnet-beta' as WalletAdapterNetwork,
+      rpcHost: candyMachineConfig.rpcHost
+    }))
+    // }
     setBackdropLoader(false)
   }
 
@@ -637,7 +653,7 @@ const Home: NextPage = () => {
           positivieButton={dialogPositiveButton}
           isError={errorDialog}
         />
-        <HorizontalSlider />
+        {/* <HorizontalSlider /> */}
         <ul className={styles.circles}>
           <li></li>
           <li></li>
