@@ -177,7 +177,7 @@ const solanaNetworkChip: SolanaNetwork[] = [
     id: 3,
     title: 'Mainnet - Beta',
     value: 'mainnet-beta',
-    rpcUrl: 'https://api.mainnet-beta.solana.com'
+    rpcUrl: 'https://solana-api.projectserum.com'
   }
 ]
 
@@ -354,7 +354,7 @@ const Form = ({ index, onNext, onPrev, connection, onFinish }: FormSteps) => {
         const availableRpcUrl = [
           'https://api.devnet.solana.com',
           'https://api.testnet.solana.com',
-          'https://api.mainnet-beta.solana.com',
+          'https://solana-api.projectserum.com/',
           'https://solana-api.projectserum.com'
         ]
         if (!availableRpcUrl.includes(registForm.rpcUrl)) {
