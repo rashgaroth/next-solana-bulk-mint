@@ -325,76 +325,75 @@ const Home: NextPage = () => {
     } as anchor.Wallet
   }, [wallet])
 
-  const refreshCandyMachineState = useCallback(
-    async (commitment: Commitment = 'confirmed') => {
-      if (!anchorWallet) {
-        return
-      }
+  const refreshCandyMachineState = useCallback(async (commitment: Commitment = 'confirmed') => {
+    if (!anchorWallet) {
+      return
+    }
 
-      const connection = new Connection(props.rpcHost, commitment)
+    const connection = new Connection(props.rpcHost, commitment)
 
-      if (props.candyMachineId) {
-        try {
-          const cndy = await getCandyMachineState(anchorWallet, props.candyMachineId, connection)
-          setItemsAvailable(cndy.state.itemsAvailable)
+    if (props.candyMachineId) {
+      try {
+        const cndy = await getCandyMachineState(anchorWallet, props.candyMachineId, connection)
+        console.log(cndy, '@cndy')
+        setItemsAvailable(cndy.state.itemsAvailable)
+        setItemsRemaining(cndy.state.itemsRemaining)
+        setCandyMachine(cndy)
+        console.log(cndy.state.goLiveDate.toNumber(), '@cndy')
+        // end the mint when amount is reached
+        if (cndy?.state.endSettings?.endSettingType.amount) {
+          const limit = Math.min(cndy.state.endSettings.number.toNumber(), cndy.state.itemsAvailable)
+          setItemsAvailable(limit)
+          if (cndy.state.itemsRedeemed < limit) {
+            setItemsRemaining(limit - cndy.state.itemsRedeemed)
+          } else {
+            setItemsRemaining(0)
+            cndy.state.isSoldOut = true
+            setIsEnded(true)
+          }
+        } else {
           setItemsRemaining(cndy.state.itemsRemaining)
-          setCandyMachine(cndy)
-          // end the mint when amount is reached
-          if (cndy?.state.endSettings?.endSettingType.amount) {
-            const limit = Math.min(cndy.state.endSettings.number.toNumber(), cndy.state.itemsAvailable)
-            setItemsAvailable(limit)
-            if (cndy.state.itemsRedeemed < limit) {
-              setItemsRemaining(limit - cndy.state.itemsRedeemed)
-            } else {
-              setItemsRemaining(0)
-              cndy.state.isSoldOut = true
-              setIsEnded(true)
-            }
-          } else {
-            setItemsRemaining(cndy.state.itemsRemaining)
-          }
+        }
 
-          if (cndy.state.isSoldOut) {
-            setIsActive(false)
-          }
-        } catch (e) {
-          if (e instanceof Error) {
-            if (e.message === `Account does not exist ${props.candyMachineId}`) {
-              setAlertState({
-                open: true,
-                message: `Couldn't fetch candy machine state from candy machine with address: ${props.candyMachineId}, using rpc: ${props.rpcHost}! You probably typed the REACT_APP_CANDY_MACHINE_ID value in wrong in your .env file, or you are using the wrong RPC!`,
-                severity: 'error',
-                hideDuration: null
-              })
-            } else if (e.message.startsWith('failed to get info about account')) {
-              setAlertState({
-                open: true,
-                message: `Couldn't fetch candy machine state with rpc: ${props.rpcHost}! This probably means you have an issue with the REACT_APP_SOLANA_RPC_HOST value in your .env file, or you are not using a custom RPC!`,
-                severity: 'error',
-                hideDuration: null
-              })
-            }
-          } else {
+        if (cndy.state.isSoldOut) {
+          setIsActive(false)
+        }
+      } catch (e) {
+        if (e instanceof Error) {
+          if (e.message === `Account does not exist ${props.candyMachineId}`) {
             setAlertState({
               open: true,
-              message: `${e}`,
+              message: `Couldn't fetch candy machine state from candy machine with address: ${props.candyMachineId}, using rpc: ${props.rpcHost}! You probably typed the REACT_APP_CANDY_MACHINE_ID value in wrong in your .env file, or you are using the wrong RPC!`,
+              severity: 'error',
+              hideDuration: null
+            })
+          } else if (e.message.startsWith('failed to get info about account')) {
+            setAlertState({
+              open: true,
+              message: `Couldn't fetch candy machine state with rpc: ${props.rpcHost}! This probably means you have an issue with the REACT_APP_SOLANA_RPC_HOST value in your .env file, or you are not using a custom RPC!`,
               severity: 'error',
               hideDuration: null
             })
           }
-          console.log(e)
+        } else {
+          setAlertState({
+            open: true,
+            message: `${e}`,
+            severity: 'error',
+            hideDuration: null
+          })
         }
-      } else {
-        setAlertState({
-          open: true,
-          message: `Your REACT_APP_CANDY_MACHINE_ID value in the .env file doesn't look right! Make sure you enter it in as plain base-58 address!`,
-          severity: 'error',
-          hideDuration: null
-        })
+        console.log(e)
       }
-    },
-    [anchorWallet, props.candyMachineId, props.rpcHost, isEnded, isPresale, props.connection]
-  )
+    } else {
+      setAlertState({
+        open: true,
+        message: `Your REACT_APP_CANDY_MACHINE_ID value in the .env file doesn't look right! Make sure you enter it in as plain base-58 address!`,
+        severity: 'error',
+        hideDuration: null
+      })
+    }
+  }, [])
 
   const toggleSettingsDrawer = (anchor: Anchor, isOpen: boolean) => (event: React.KeyboardEvent | React.MouseEvent) => {
     // eslint-disable-next-line prettier/prettier
