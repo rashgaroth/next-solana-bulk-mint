@@ -14,7 +14,8 @@ const style = {
   top: '50%',
   left: '50%',
   transform: 'translate(-50%, -50%)',
-  width: 650,
+  maxWidth: 650,
+  minWidth: 350,
   bgcolor: 'background.paper',
   borderRadius: 4,
   boxShadow: 24,
@@ -48,8 +49,6 @@ const MintModal = ({
   onMinting
 }: IMintModal) => {
   const wallet = useWallet()
-  const router = useRouter()
-
   return (
     <Modal
       aria-labelledby="transition-modal-title"

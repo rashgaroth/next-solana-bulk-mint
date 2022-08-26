@@ -58,10 +58,19 @@ export const MintButton = ({
       return 'WHITELIST MINT'
     }
 
-    return 'MINT NOW'
+    return 'MINT'
+  }
+
+  const setMint = () => {
+    const fromStates = [GatewayStatus.NOT_REQUESTED, GatewayStatus.REFRESH_TOKEN_REQUIRED]
+    const invalidToStates = [...fromStates, GatewayStatus.UNKNOWN]
+    if (fromStates.find((state) => previousGatewayStatus === state) && !invalidToStates.find((state) => gatewayStatus === state)) {
+      setIsMinting(true)
+    }
   }
 
   useEffect(() => {
+    console.log('sini')
     const mint = async () => {
       await removeAccountChangeListener(connection.connection, webSocketSubscriptionId)
       await onMint()
@@ -72,22 +81,21 @@ export const MintButton = ({
     if (verified && clicked) {
       mint()
     }
-  }, [verified, clicked, connection.connection, onMint, webSocketSubscriptionId])
+  }, [])
 
   const previousGatewayStatus = usePrevious(gatewayStatus)
   useEffect(() => {
-    const fromStates = [GatewayStatus.NOT_REQUESTED, GatewayStatus.REFRESH_TOKEN_REQUIRED]
-    const invalidToStates = [...fromStates, GatewayStatus.UNKNOWN]
-    if (fromStates.find((state) => previousGatewayStatus === state) && !invalidToStates.find((state) => gatewayStatus === state)) {
-      setIsMinting(true)
+    console.log('sana', previousGatewayStatus)
+    if (previousGatewayStatus) {
+      setMint()
     }
-  }, [setIsMinting, previousGatewayStatus, gatewayStatus])
+  }, [])
 
   return (
     <LoadingButton
       loading={isMinting}
       disabled={isMinting || !isActive}
-      sx={{ width: 250, bgcolor: 'primary.light' }}
+      sx={{ bgcolor: 'primary.light', width: 100 }}
       onClick={async () => {
         console.log('on clicked!')
         if (candyMachine?.state.isActive && candyMachine?.state.gatekeeper) {

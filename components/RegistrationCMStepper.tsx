@@ -354,8 +354,8 @@ const Form = ({ index, onNext, onPrev, connection, onFinish }: FormSteps) => {
         const availableRpcUrl = [
           'https://api.devnet.solana.com',
           'https://api.testnet.solana.com',
-          'https://solana-api.projectserum.com/',
-          'https://solana-api.projectserum.com'
+          'https://mainnet.neonevm.org',
+          'https://mainnet.neonevm.org'
         ]
         if (!availableRpcUrl.includes(registForm.rpcUrl)) {
           setAlertState({

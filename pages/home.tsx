@@ -335,8 +335,8 @@ const Home: NextPage = () => {
 
       if (props.candyMachineId) {
         try {
+          console.log('@init')
           const cndy = await getCandyMachineState(anchorWallet, props.candyMachineId, connection)
-          console.log(cndy.state.goLiveDate.toNumber())
           setItemsAvailable(cndy.state.itemsAvailable)
           setItemsRemaining(cndy.state.itemsRemaining)
           setCandyMachine(cndy)
@@ -363,14 +363,14 @@ const Home: NextPage = () => {
             if (e.message === `Account does not exist ${props.candyMachineId}`) {
               setAlertState({
                 open: true,
-                message: `Couldn't fetch candy machine state from candy machine with address: ${props.candyMachineId}, using rpc: ${props.rpcHost}! You probably typed the REACT_APP_CANDY_MACHINE_ID value in wrong in your .env file, or you are using the wrong RPC!`,
+                message: `RPC failed to load`,
                 severity: 'error',
                 hideDuration: null
               })
             } else if (e.message.startsWith('failed to get info about account')) {
               setAlertState({
                 open: true,
-                message: `Couldn't fetch candy machine state with rpc: ${props.rpcHost}! This probably means you have an issue with the REACT_APP_SOLANA_RPC_HOST value in your .env file, or you are not using a custom RPC!`,
+                message: `RPC failed to load`,
                 severity: 'error',
                 hideDuration: null
               })
@@ -394,7 +394,7 @@ const Home: NextPage = () => {
         })
       }
     },
-    [anchorWallet, props.candyMachineId, props.rpcHost, isEnded, isPresale, props.connection]
+    [anchorWallet, props.candyMachineId, props.rpcHost]
   )
 
   const toggleSettingsDrawer = (anchor: Anchor, isOpen: boolean) => (event: React.KeyboardEvent | React.MouseEvent) => {
@@ -522,7 +522,7 @@ const Home: NextPage = () => {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props])
+  }, [props.candyMachineId])
 
   return (
     <AuthLayout>
@@ -546,66 +546,72 @@ const Home: NextPage = () => {
           </Grid>
           <div className={styles.tron}>
             <p className={styles.duckText}>Duck Goes Places</p>
-            <Stack direction={'row'} spacing={2} alignItems="center" justifyContent={'end'}>
-              <Button
-                // @ts-ignore
-                disabled={!isActive && !isEnded && candyMachine?.state.goLiveDate}
-                sx={{
-                  zIndex: 1000,
-                  backgroundColor: !isActive && !isEnded && candyMachine?.state.goLiveDate ? '#919191' : '#FBA724',
-                  px: 3,
-                  py: 2.5,
-                  borderRadius: 4,
-                  '&:hover': { backgroundColor: 'darkorange' }
-                }}
-                onClick={handleOpenMenu}>
-                <Menu sx={{ color: 'white' }} />
-              </Button>
-              <HomeMenu
-                anchorEl={anchorEl}
-                handleClose={() => setAnchorEl(null)}
-                open={open}
-                onClickAccount={onClickAccount}
-                onClickCreateCandyMachine={onClickCreateCandyMachine}
-                onClickSetting={onClickSettings}
-                onClickSugar={() => {
-                  router.push('/multiple/mint')
-                }}
-              />
-              <Button
-                // @ts-ignore
-                disabled={!isActive && !isEnded && candyMachine?.state.goLiveDate}
-                sx={{
-                  zIndex: 1000,
-                  backgroundColor: !isActive && !isEnded && candyMachine?.state.goLiveDate ? '#919191' : '#FBA724',
-                  px: 3,
-                  py: 2.5,
-                  borderRadius: 4,
-                  '&:hover': { backgroundColor: 'darkorange' }
-                }}
-                onClick={() => openMintModal(props.candyMachineId)}>
-                <Typography color="white" fontWeight={'bold'} variant="h4">
-                  {props.candyMachineId !== null ? 'Mint Now' : 'Setup Config'}
-                </Typography>
-              </Button>
-              <div className={styles.walletContainer}>
-                <ul className={styles.ulWallet}>
-                  {wallet ? (
-                    <div className={styles.walletAmount}>
-                      {(balance || 0).toLocaleString()} SOL
-                      <WalletMultiButton className={styles.connectWallet} />
-                      <WalletDisconnectButton
-                        className={styles.disconnectWallet}
-                        onClick={async () => {
-                          await disconnectAndSignOut()
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    <WalletMultiButton className={styles.connectWallet}>Connect Wallet</WalletMultiButton>
-                  )}
-                </ul>
-              </div>
+            <Stack direction={'column'} spacing={2} alignItems="start" justifyContent={'start'}>
+              {/* <Stack direction={'row'} spacing={2} alignItems="center" justifyContent={'end'}> */}
+              {/* <Button
+                  // @ts-ignore
+                  disabled={!isActive && !isEnded && candyMachine?.state.goLiveDate}
+                  sx={{
+                    zIndex: 1000,
+                    backgroundColor: !isActive && !isEnded && candyMachine?.state.goLiveDate ? '#919191' : '#FBA724',
+                    px: 3,
+                    py: 2.5,
+                    borderRadius: 4,
+                    '&:hover': { backgroundColor: 'darkorange' }
+                  }}
+                  onClick={handleOpenMenu}>
+                  <Menu sx={{ color: 'white' }} />
+                </Button> */}
+              {/* <HomeMenu
+                  anchorEl={anchorEl}
+                  handleClose={() => setAnchorEl(null)}
+                  open={open}
+                  onClickAccount={onClickAccount}
+                  onClickCreateCandyMachine={onClickCreateCandyMachine}
+                  onClickSetting={onClickSettings}
+                  onClickSugar={() => {
+                    router.push('/multiple/mint')
+                  }}
+                /> */}
+              {/* </Stack> */}
+              <Stack direction={'row'} spacing={2} alignItems="center" justifyContent={'end'}>
+                <Button
+                  // @ts-ignore
+                  disabled={!isActive && !isEnded && candyMachine?.state.goLiveDate}
+                  sx={{
+                    zIndex: 1000,
+                    backgroundColor: !isActive && !isEnded && candyMachine?.state.goLiveDate ? '#919191' : '#FBA724',
+                    px: 3,
+                    py: 2.5,
+                    borderRadius: 4,
+                    '&:hover': { backgroundColor: 'darkorange' }
+                  }}
+                  onClick={() => openMintModal(props.candyMachineId)}>
+                  <Typography color="white" fontWeight={'bold'} variant="h4">
+                    {props.candyMachineId !== null ? 'Mint Now' : 'Setup Config'}
+                  </Typography>
+                </Button>
+                <div className={styles.walletContainer}>
+                  <ul className={styles.ulWallet}>
+                    {wallet ? (
+                      <div className={styles.walletAmount}>
+                        <Box sx={{ display: { xs: 'none', md: 'block' } }}>
+                          {(balance || 0).toLocaleString()} SOL
+                          <WalletMultiButton className={styles.connectWallet} />
+                        </Box>
+                        <WalletDisconnectButton
+                          className={styles.disconnectWallet}
+                          onClick={async () => {
+                            await disconnectAndSignOut()
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <WalletMultiButton className={styles.connectWallet}>Connect Wallet</WalletMultiButton>
+                    )}
+                  </ul>
+                </div>
+              </Stack>
             </Stack>
             {!isActive && !isEnded && candyMachine?.state.goLiveDate && (
               <Countdown
@@ -655,7 +661,7 @@ const Home: NextPage = () => {
           isError={errorDialog}
         />
         {/* <HorizontalSlider /> */}
-        <ul className={styles.circles}>
+        {/* <ul className={styles.circles}>
           <li></li>
           <li></li>
           <li></li>
@@ -668,7 +674,7 @@ const Home: NextPage = () => {
           <li></li>
           <li></li>
           <li></li>
-        </ul>
+        </ul> */}
       </div>
     </AuthLayout>
   )

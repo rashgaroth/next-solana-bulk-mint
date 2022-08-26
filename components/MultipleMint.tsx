@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import * as anchor from '@project-serum/anchor'
 
 import styled from 'styled-components'
-import { Box, Container, LinearProgress, LinearProgressProps, Snackbar, Typography } from '@mui/material'
+import { Box, Container, LinearProgress, LinearProgressProps, Snackbar, Stack, Typography } from '@mui/material'
 import { Alert } from '@mui/material'
 import { Commitment, Connection, Transaction } from '@solana/web3.js'
 import { useWallet } from '@solana/wallet-adapter-react'
@@ -121,11 +121,11 @@ const Home = (props: HomeProps) => {
   const [itemsAvailable, setItemsAvailable] = useState(0)
   const [itemsRedeemed, setItemsRedeemed] = useState(0)
 
-  const rpcUrl = props.rpcHost
   const wallet = useWallet()
   const classes = useStyles()
 
   const anchorWallet = useMemo(() => {
+    console.log('sini')
     if (!wallet || !wallet.publicKey || !wallet.signAllTransactions || !wallet.signTransaction) {
       return
     }
@@ -138,14 +138,11 @@ const Home = (props: HomeProps) => {
   }, [wallet])
 
   const refreshCandyMachineState = useCallback(async (commitment: Commitment = 'confirmed') => {
+    console.log('refreshing')
     if (!anchorWallet) {
       return
     }
-
-    console.log(props)
-
     const connection = new Connection(props.rpcHost, commitment)
-
     if (props.candyMachineId) {
       try {
         const cndy = await getCandyMachineState(anchorWallet, props.candyMachineId, connection)
@@ -276,34 +273,35 @@ const Home = (props: HomeProps) => {
       } catch (e) {
         if (e instanceof Error) {
           if (e.message === `Account does not exist ${props.candyMachineId}`) {
-            setAlertState({
-              open: true,
-              message: `Couldn't fetch candy machine state from candy machine with address: ${props.candyMachineId}, using rpc: ${props.rpcHost}! You probably typed the REACT_APP_CANDY_MACHINE_ID value in wrong in your .env file, or you are using the wrong RPC!`,
-              severity: 'error',
-              hideDuration: null
-            })
+            // setAlertState({
+            //   open: true,
+            //   message: `RPC Unstable with ${props.rpcHost}`,
+            //   severity: 'error',
+            //   hideDuration: null
+            // })
+            return
           } else if (e.message.startsWith('failed to get info about account')) {
             setAlertState({
               open: true,
-              message: `Couldn't fetch candy machine state with rpc: ${props.rpcHost}! This probably means you have an issue with the REACT_APP_SOLANA_RPC_HOST value in your .env file, or you are not using a custom RPC!`,
+              message: `RPC Unstable with ${props.rpcHost}`,
               severity: 'error',
               hideDuration: null
             })
           }
         } else {
-          setAlertState({
-            open: true,
-            message: `${e}`,
-            severity: 'error',
-            hideDuration: null
-          })
+          // setAlertState({
+          //   open: true,
+          //   message: `${e}`,
+          //   severity: 'error',
+          //   hideDuration: null
+          // })
         }
         console.log(e)
       }
     } else {
       setAlertState({
         open: true,
-        message: `Your REACT_APP_CANDY_MACHINE_ID value in the .env file doesn't look right! Make sure you enter it in as plain base-58 address!`,
+        message: `Wrong candy machine`,
         severity: 'error',
         hideDuration: null
       })
@@ -494,20 +492,25 @@ const Home = (props: HomeProps) => {
   }
 
   useEffect(() => {
-    refreshCandyMachineState()
+    if (props.candyMachineId !== null) {
+      refreshCandyMachineState()
+    }
   }, [])
 
+  function loop() {
+    setTimeout(() => {
+      console.log('here')
+      refreshCandyMachineState()
+      loop()
+    }, 20000)
+  }
+
   useEffect(() => {
-    ;(function loop() {
-      setTimeout(() => {
-        refreshCandyMachineState()
-        loop()
-      }, 20000)
-    })()
+    loop()
   }, [refreshCandyMachineState])
 
   return (
-    <Container maxWidth="xs" style={{ position: 'relative' }}>
+    <div style={{ position: 'relative' }}>
       {!wallet.connected ? (
         <ConnectButton>Connect Wallet</ConnectButton>
       ) : (
@@ -519,7 +522,7 @@ const Home = (props: HomeProps) => {
                 wallet={wallet}
                 gatekeeperNetwork={candyMachine?.state?.gatekeeper?.gatekeeperNetwork}
                 cluster="mainnet-beta"
-                clusterUrl={props.network === WalletAdapterNetwork.Mainnet ? 'https://rpc.ankr.com/solana' : rpcUrl}
+                clusterUrl={'https://solana-api.projectserum.com/'}
                 handleTransaction={async (transaction: Transaction) => {
                   console.log('onHandleTransaction!!', transaction)
                   setIsUserMinting(true)
@@ -573,14 +576,7 @@ const Home = (props: HomeProps) => {
                 }}
                 broadcastTransaction={false}
                 options={{ autoShowModal: false }}>
-                <div
-                  style={{
-                    width: '450px',
-                    display: 'flex',
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'space-between'
-                  }}>
+                <Stack direction="row" spacing={2} alignItems="center" justifyContent={'space-between'}>
                   <MintButton
                     candyMachine={candyMachine}
                     isMinting={isUserMinting}
@@ -600,10 +596,10 @@ const Home = (props: HomeProps) => {
                       itemsAvailable={itemsAvailable}
                     />
                   </Box>
-                </div>
+                </Stack>
               </GatewayProvider>
             ) : (
-              <div style={{ width: '450px', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Stack direction="row" spacing={2} alignItems="center" justifyContent={'space-between'}>
                 <MintButton
                   candyMachine={candyMachine}
                   isMinting={isUserMinting}
@@ -612,7 +608,7 @@ const Home = (props: HomeProps) => {
                   isActive={isActive || (isPresale && isWhitelistUser && isValidBalance)}
                 />
                 <MintCounter mintCount={mintCount} handleMintCount={handleMintCount} />
-                <Box sx={{ width: '100%' }}>
+                <Box sx={{ width: '100%', display: { xs: 'none', md: 'block' } }}>
                   <LinearProgressWithLabel
                     // @ts-ignore
                     className={classes.root}
@@ -623,7 +619,7 @@ const Home = (props: HomeProps) => {
                     itemsAvailable={itemsAvailable}
                   />
                 </Box>
-              </div>
+              </Stack>
             )}
           </MintContainer>
         </>
@@ -636,7 +632,7 @@ const Home = (props: HomeProps) => {
           {alertState.message}
         </Alert>
       </Snackbar>
-    </Container>
+    </div>
   )
 }
 
@@ -694,7 +690,7 @@ const MultipleMint = ({ onFinish, onMinting, onError }: HomeEvents) => {
     if (wallet.connected) {
       initialPage()
     }
-  }, [props.candyMachineId, wallet.connected])
+  }, [])
 
   return backdropLoader || props.candyMachineId === null ? (
     <LoadingBackdrop open={backdropLoader} handleClose={() => setBackdropLoader(false)} />

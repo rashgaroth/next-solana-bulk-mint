@@ -111,7 +111,7 @@ const LoginPage: NextPage = () => {
             direction="column"
             alignItems="center"
             justifyContent="center"
-            style={{ minHeight: '50vh', width: '50vh' }}
+            style={{ minHeight: '50vh', minWidth: '30vh', maxWidth: '50vh' }}
             sx={{ bgcolor: 'primary.light', borderRadius: 4, p: 2 }}>
             <Grid item>
               <Typography component={'div'} variant="h1" fontWeight="bold" color="white">
