@@ -68,13 +68,13 @@ const MintModal = ({
           <CardMedia src="/assets/images/collection.gif" component={'img'} sx={{ borderRadius: 4 }} height={400} width={100} alt="gif" />
           <Stack direction={'row'} spacing={2} mt={2} mb={2} alignItems={'center'}>
             {/* @ts-ignore */}
-            {itemsRemaining > 0 && (
+            {itemsRemaining > 0 && open && (
               <Stack direction={'row'} spacing={0} alignItems="center" justifyContent={'center'}>
                 <MultipleMint onError={onError} onFinish={onFinish} onMinting={onMinting} />
               </Stack>
             )}
           </Stack>
-          {itemsRemaining === 0 && (
+          {/* {itemsRemaining === 0 && (
             <>
               <p className={styles.buttonText} style={{ textAlign: 'start', fontSize: 19, alignSelf: 'start' }}>
                 Your NFTs has been minted 🥳🥳🥳
@@ -95,7 +95,7 @@ const MintModal = ({
                 </Typography>
               )}
             </>
-          )}
+          )} */}
           {solscanInfo !== '' && (
             <Typography color="white" fontWeight={'bold'} variant="button" component={'div'}>
               Mint Succeed you can see your transaction at{' '}
