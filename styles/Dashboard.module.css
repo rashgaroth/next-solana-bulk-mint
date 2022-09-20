@@ -1,6 +1,6 @@
 @font-face {
   font-family: "Boldenvan";
-  src: url("/fonts/boldenvan.ttf") format('truetype');
+  src: url("./fonts/boldenvan.ttf") format('truetype');
   font-weight: bold;
 }
 

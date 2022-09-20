@@ -536,7 +536,12 @@ const Home: NextPage = () => {
         <Box sx={{ zIndex: 999 }}>
           <Grid container direction={'column'} spacing={3}>
             <Grid item>
-              <Typography variant="h1" textAlign={'center'} fontWeight="bolder" className={styles.welcome}>
+              <Typography
+                variant="h1"
+                textAlign={'center'}
+                fontWeight="bolder"
+                className={styles.welcome}
+                style={{ fontFamily: 'Boldenvan', color: 'white' }}>
                 Welcome To DGP NFT
               </Typography>
               <Typography variant="h3" textAlign={'center'} color="white">

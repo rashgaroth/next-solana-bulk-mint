@@ -43,6 +43,10 @@ const environment = {
 module.exports = withTM({
   reactStrictMode: true,
   webpack5: true,
+  images: {
+    loader: 'akamai',
+    path: ''
+  },
   webpack: (config) => {
     config.resolve.fallback = {
       fs: false,
