@@ -66,7 +66,6 @@ const uploadFile = async (file: formidable.File, base64: string, res: NextApiRes
     const filePath = `${path}/assets/${'compressed'}/${address}/`
 
     fs.readFile(filePath + name, async (err, data) => {
-      console.log(data, '@data?')
       if (err) {
         if (err.message.includes('no such file or directory')) {
           await fs.promises.mkdir(filePath, { recursive: true })

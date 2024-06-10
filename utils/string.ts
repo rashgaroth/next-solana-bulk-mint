@@ -1,7 +1,3 @@
-/* eslint-disable prefer-const */
-export const decimalNFT = 16
-export const decimalBNB = 18
-
 export const makeRandomDeg = (): number => {
   return Math.random() * 10
 }
@@ -18,8 +14,8 @@ export const truncate = (str: string, n: number, useWordBoundary: string): strin
   if (str.length <= n) {
     return str
   }
-  const subString = str.substr(0, n - 1) // the original check
-  return (useWordBoundary ? subString.substr(0, subString.lastIndexOf(' ')) : subString) + '...'
+  const subString = str.substring(0, n - 1) // the original check
+  return (useWordBoundary ? subString.substring(0, subString.lastIndexOf(' ')) : subString) + '...'
 }
 
 export const truncateWalletAddress = (input = '', n = 10): string => {
@@ -37,12 +33,11 @@ export const truncateWalletAddress = (input = '', n = 10): string => {
   }
 }
 
-export const toNormalUnit = (price: number, decimal: number): number => {
-  let unit
+export const toNormalUnit = (price: number, decimal: number): bigint => {
   if (typeof price === 'string') {
     parseInt(price)
   }
-  unit = BigInt(price * Math.pow(10, decimal))
+  const unit = BigInt(price * Math.pow(10, decimal))
 
   return unit
 }
